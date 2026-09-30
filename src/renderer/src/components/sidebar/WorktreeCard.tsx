@@ -27,6 +27,7 @@ const WorktreeCard = React.memo(function WorktreeCard({
   nativeDragEnabled = true,
   hideRepoBadge,
   hostContextLabel,
+  searchProjectLabel,
   inPinnedSection = false,
   activationRowKey,
   renameRowKey,
@@ -76,7 +77,7 @@ const WorktreeCard = React.memo(function WorktreeCard({
     statusPrDisplay
   })
 
-  return <WorktreeCardSurface card={card} />
+  return <WorktreeCardSurface card={card} searchProjectLabel={searchProjectLabel} />
 })
 
 export default WorktreeCard

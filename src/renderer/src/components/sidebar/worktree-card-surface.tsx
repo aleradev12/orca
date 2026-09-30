@@ -8,7 +8,13 @@ import { WorktreeCardParentContent } from './worktree-card-parent-content'
 import { buildWorktreeCardPresentation } from './worktree-card-presentation'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
-export function WorktreeCardSurface({ card }: { card: WorktreeCardController }): React.JSX.Element {
+export function WorktreeCardSurface({
+  card,
+  searchProjectLabel
+}: {
+  card: WorktreeCardController
+  searchProjectLabel?: string
+}): React.JSX.Element {
   const presentation = buildWorktreeCardPresentation(card)
   const {
     worktree,
@@ -41,7 +47,13 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
   } = card
   const { titleOnlyCard, cardStyle } = presentation
 
-  const parentCardContent = <WorktreeCardParentContent card={card} presentation={presentation} />
+  const parentCardContent = (
+    <WorktreeCardParentContent
+      card={card}
+      presentation={presentation}
+      searchProjectLabel={searchProjectLabel}
+    />
+  )
 
   const cardBody = (
     <div

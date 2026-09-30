@@ -12,10 +12,12 @@ import type { WorktreeCardController } from './use-worktree-card-controller'
 
 export function WorktreeCardParentContent({
   card,
-  presentation
+  presentation,
+  searchProjectLabel
 }: {
   card: WorktreeCardController
   presentation: WorktreeCardPresentation
+  searchProjectLabel?: string
 }): React.JSX.Element {
   const {
     worktree,
@@ -70,6 +72,15 @@ export function WorktreeCardParentContent({
       data-worktree-card-hover-trigger=""
     >
       <WorktreeCardHeader card={card} presentation={presentation} />
+      {searchProjectLabel && (
+        <span
+          data-search-project-label
+          className="min-w-0 truncate text-[11px] leading-4 text-muted-foreground"
+          title={`${searchProjectLabel}\n${card.repo?.path ?? worktree.path}`}
+        >
+          {searchProjectLabel}
+        </span>
+      )}
       {presentation.hasMetaRow && <WorktreeCardMetaRow card={card} presentation={presentation} />}
     </div>
   )
