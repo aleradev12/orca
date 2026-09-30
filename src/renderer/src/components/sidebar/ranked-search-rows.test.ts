@@ -26,7 +26,11 @@ describe('globally ranked Projects search rows', () => {
       item(path, 'a'),
       { type: 'header', key: 'project-b', count: 1 },
       item(branch, 'b'),
-      { type: 'header', key: 'empty', count: 0, repo: { id: 'empty' } }
+      { type: 'header', key: 'empty', count: 0, repo: { id: 'empty' } },
+      { type: 'folder-workspace', key: 'folder' },
+      { type: 'host-header', key: 'host' },
+      { type: 'imported-worktrees-card', key: 'inbox' },
+      { type: 'pending-creation', key: 'pending' }
     ] as HostSectionRow[]
     const result = rankProjectsSearchRows(
       rows,
@@ -38,8 +42,7 @@ describe('globally ranked Projects search rows', () => {
     )
     expect(result.map((row) => (row.type === 'item' ? row.worktree.id : row.key))).toEqual([
       'branch',
-      'path',
-      'empty'
+      'path'
     ])
     expect(result[0]).toMatchObject({
       depth: 0,

@@ -1,4 +1,5 @@
 import React from 'react'
+import { WorkspaceContext } from './WorkspaceContext'
 
 import { cn } from '@/lib/utils'
 import { WorktreeCardHeader } from './worktree-card-header'
@@ -73,15 +74,13 @@ export function WorktreeCardParentContent({
     >
       <WorktreeCardHeader card={card} presentation={presentation} />
       {searchProjectLabel && (
-        <span
-          data-search-project-label
-          className="min-w-0 truncate text-[11px] leading-4 text-muted-foreground"
-          title={`${searchProjectLabel}\n${card.repo?.path ?? worktree.path}`}
-        >
-          {searchProjectLabel}
+        <span data-search-project-label className="min-w-0">
+          <WorkspaceContext workspace={worktree} repo={card.repo} />
         </span>
       )}
-      {presentation.hasMetaRow && <WorktreeCardMetaRow card={card} presentation={presentation} />}
+      {!searchProjectLabel && presentation.hasMetaRow && (
+        <WorktreeCardMetaRow card={card} presentation={presentation} />
+      )}
     </div>
   )
   // Why: status glyphs and agent rows own their tooltips; only identity content should open the larger details card.
@@ -175,7 +174,9 @@ export function WorktreeCardParentContent({
         )}
       >
         {identityContentWithHover}
-        <WorktreeCardSecondaryRows card={card} presentation={presentation} />
+        {!searchProjectLabel && (
+          <WorktreeCardSecondaryRows card={card} presentation={presentation} />
+        )}
       </div>
     </div>
   )
