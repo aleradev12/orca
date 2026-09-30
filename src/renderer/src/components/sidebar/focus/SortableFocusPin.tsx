@@ -58,9 +58,10 @@ export function SortableFocusPin({
               data-current={current}
               data-focus-identity={pin.identity}
               style={{
-                transform: transform
-                  ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-                  : undefined,
+                transform:
+                  transform && !isDragging
+                    ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+                    : undefined,
                 transition
               }}
               className={cn(
@@ -70,8 +71,7 @@ export function SortableFocusPin({
                   : 'flex min-h-14 shrink-0 items-center gap-2 px-2 py-1.5 text-left text-[13px]',
                 current && 'bg-sidebar-accent ring-1 ring-inset ring-sidebar-ring',
                 !available && 'opacity-50',
-                isDragging &&
-                  'z-10 cursor-grabbing bg-sidebar-accent ring-2 ring-sidebar-ring shadow-sm'
+                isDragging && 'z-10 cursor-grabbing bg-sidebar-accent opacity-30'
               )}
               onClick={() => {
                 if (available && !isDragging) {
