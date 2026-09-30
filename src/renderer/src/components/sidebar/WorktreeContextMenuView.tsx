@@ -1,3 +1,4 @@
+import { FocusWorkspaceMenu } from './focus/FocusWorkspaceMenu'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -161,6 +162,14 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
               <Pencil className="size-3.5" />
               {translate('auto.components.sidebar.WorktreeContextMenu.439fa94d53', 'Update')}
             </DropdownMenuItem>
+          )}
+          {!isMultiContext && (
+            <FocusWorkspaceMenu
+              worktree={worktree}
+              repo={repo}
+              disabled={isDeleting}
+              onSaved={() => setMenuOpenState(false)}
+            />
           )}
           <WorktreeStatusMenuItems
             contextWorkspaceStatus={contextWorkspaceStatus}
