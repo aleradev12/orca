@@ -1,7 +1,7 @@
 import {
   ORCA_FOCUS_BUILD,
   ORCA_FOCUS_APP_NAME,
-  ORCA_FOCUS_PROFILE
+  getFocusProfileName
 } from '../../shared/orca-focus-build'
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
@@ -215,7 +215,9 @@ export function configureDevUserDataPath(isDev: boolean): void {
 
   if (ORCA_FOCUS_BUILD) {
     app.setName(ORCA_FOCUS_APP_NAME)
-    app.setPath('userData', join(app.getPath('appData'), ORCA_FOCUS_PROFILE))
+    // A plain pnpm dev must never share the packaged primary's mutable profile.
+    const devOverride = isDev ? process.env.ORCA_DEV_USER_DATA_PATH : undefined
+    app.setPath('userData', devOverride || join(app.getPath('appData'), getFocusProfileName(isDev)))
     return
   }
   if (!isDev) {
