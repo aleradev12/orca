@@ -18035,6 +18035,10 @@
           "unknown": "알 수 없는 호스트",
           "candidateName": "{{value1}}의 {{value0}}"
         }
+      },
+      "creation": {
+        "readyToast": "{{name}} 준비 완료",
+        "openReady": "열기"
       }
     },
     "agentSessionContinuation": {

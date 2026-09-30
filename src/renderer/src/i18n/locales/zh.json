@@ -18000,6 +18000,10 @@
           "unknown": "未知主机",
           "candidateName": "{{value0}} 在 {{value1}} 上"
         }
+      },
+      "creation": {
+        "readyToast": "{{name}} 已就绪",
+        "openReady": "打开"
       }
     },
     "agentSessionContinuation": {

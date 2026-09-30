@@ -15173,6 +15173,10 @@
           "gitlabMergeRequestNumber": "MR #{{value0}}",
           "githubPullRequestNumber": "PR #{{value0}}"
         }
+      },
+      "creation": {
+        "readyToast": "{{name}} está listo",
+        "openReady": "Abrir"
       }
     },
     "agentSessionContinuation": {

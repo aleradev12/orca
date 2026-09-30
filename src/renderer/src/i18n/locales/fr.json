@@ -18099,6 +18099,10 @@
           "unknown": "Hôte inconnu",
           "candidateName": "{{value0}} sur {{value1}}"
         }
+      },
+      "creation": {
+        "readyToast": "{{name}} est prêt",
+        "openReady": "Ouvrir"
       }
     },
     "agentSessionContinuation": {

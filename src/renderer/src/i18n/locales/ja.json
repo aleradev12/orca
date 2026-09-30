@@ -18035,6 +18035,10 @@
           "unknown": "不明なホスト",
           "candidateName": "{{value0}}、{{value1}}"
         }
+      },
+      "creation": {
+        "readyToast": "{{name}} の準備ができました",
+        "openReady": "開く"
       }
     },
     "agentSessionContinuation": {

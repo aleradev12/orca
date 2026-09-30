@@ -18178,6 +18178,10 @@
           "unknown": "Unknown host",
           "candidateName": "{{value0}} on {{value1}}"
         }
+      },
+      "creation": {
+        "readyToast": "{{name}} is ready",
+        "openReady": "Open"
       }
     },
     "agentSessionContinuation": {
