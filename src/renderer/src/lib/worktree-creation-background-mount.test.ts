@@ -48,11 +48,20 @@ function makeAgentRequest(): WorktreeCreationRequest {
   }
 }
 
+function makeBlankTerminalRequest(
+  overrides: Partial<WorktreeCreationRequest> = {}
+): WorktreeCreationRequest {
+  return { ...makeAgentRequest(), agent: null, startupPlan: null, ...overrides }
+}
+
 // Submits from the composer, then moves the user off the creation panel before the create lands.
-async function createAfterUserSwitchedAway(result: CreateWorktreeResult): Promise<void> {
+async function createAfterUserSwitchedAway(
+  result: CreateWorktreeResult,
+  request: WorktreeCreationRequest = makeAgentRequest()
+): Promise<void> {
   const createWorktree = vi.fn(async () => result)
   useAppStore.setState({ createWorktree })
-  const creationId = runBackgroundWorktreeCreation(makeAgentRequest())
+  const creationId = runBackgroundWorktreeCreation(request)
   useAppStore.setState({ activePendingCreationId: null })
   await vi.waitFor(() =>
     expect(useAppStore.getState().pendingWorktreeCreations[creationId]).toBeUndefined()
@@ -106,5 +115,42 @@ describe('a create finishing after the user switched away', () => {
     const setupTab = tabs.find((tab) => tab.id !== hostTab.id)
     expect(requestMount).toHaveBeenCalledTimes(1)
     expect(requestMount).toHaveBeenCalledWith({ worktreeId: worktree.id, tabIds: [setupTab?.id] })
+  })
+
+  it('mounts a plain terminal whose only work is a queued setup split', async () => {
+    useAppStore.setState((current) => ({
+      settings: current.settings && { ...current.settings, setupScriptLaunchMode: 'split-vertical' }
+    }))
+
+    await createAfterUserSwitchedAway(
+      {
+        worktree,
+        setup: { runnerScriptPath: '/workspace/repo/.git/orca/setup-runner.sh', envVars: {} }
+      },
+      makeBlankTerminalRequest()
+    )
+
+    const next = useAppStore.getState()
+    const tabs = next.tabsByWorktree[worktree.id] ?? []
+    expect(tabs).toHaveLength(1)
+    const tabId = tabs[0]?.id ?? ''
+    expect(next.pendingStartupByTabId[tabId]).toBeUndefined()
+    expect(next.pendingSetupSplitByTabId[tabId]).toBeDefined()
+    expect(requestMount).toHaveBeenCalledWith({ worktreeId: worktree.id, tabIds: [tabId] })
+  })
+
+  it('mounts a plain terminal whose only work is a queued issue-command split', async () => {
+    await createAfterUserSwitchedAway(
+      { worktree },
+      makeBlankTerminalRequest({ issueCommand: { command: 'echo issue' } })
+    )
+
+    const next = useAppStore.getState()
+    const tabs = next.tabsByWorktree[worktree.id] ?? []
+    expect(tabs).toHaveLength(1)
+    const tabId = tabs[0]?.id ?? ''
+    expect(next.pendingStartupByTabId[tabId]).toBeUndefined()
+    expect(next.pendingIssueCommandSplitByTabId[tabId]).toBeDefined()
+    expect(requestMount).toHaveBeenCalledWith({ worktreeId: worktree.id, tabIds: [tabId] })
   })
 })
