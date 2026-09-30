@@ -44,6 +44,7 @@ export type WorktreeRow = {
   lineageGroupKey?: string
   lineageCollapsed?: boolean
   hostContextLabel?: string
+  searchProjectLabel?: string
 }
 
 export type ImportedWorktreesCardCandidate = {
@@ -89,6 +90,7 @@ export type FolderWorkspaceRow = {
   key: string
   folderWorkspace: FolderWorkspace
   projectGroup: ProjectGroup
+  searchProjectLabel?: string
   depth: number
   groupDepth: number
 }

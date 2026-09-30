@@ -1,5 +1,6 @@
 import { FocusPanel } from './focus/FocusPanel'
 import { useFocusStore } from './focus/use-focus-store'
+import { ProjectsSearch } from './ProjectsSearch'
 import React, { useEffect, useMemo } from 'react'
 import { useAppStore } from '@/store'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -65,9 +66,25 @@ function Sidebar({
   const agentGroupBy = useAppStore((s) => s.agentsGroupBy)
   const setAgentGroupBy = useAppStore((s) => s.setAgentsGroupBy)
   const [agentQuery, setAgentQuery] = React.useState('')
+  const [projectsQuery, setProjectsQuery] = React.useState('')
   const projectsCollapsed = useFocusStore((state) => state.projectsCollapsed)
   const setProjectsCollapsed = useFocusStore((state) => state.setProjectsCollapsed)
   const projectsContentId = React.useId()
+  const setSidebarBody = useAppStore((state) => state.setSidebarBody)
+  const handleProjectsQuery = React.useCallback(
+    (query: string) => {
+      setProjectsQuery(query)
+      if (query.trim()) {
+        if (projectsCollapsed) {
+          setProjectsCollapsed(false)
+        }
+        if (sidebarBody === 'agents') {
+          setSidebarBody('workspaces')
+        }
+      }
+    },
+    [projectsCollapsed, setProjectsCollapsed, sidebarBody, setSidebarBody]
+  )
   const [agentOptionsTarget, setAgentOptionsTarget] = React.useState<HTMLDivElement | null>(null)
   const agentsScrollTopRef = React.useRef(0)
   // Held here so collapsed groups (and the layout the saved scrollTop assumes)
@@ -174,6 +191,7 @@ function Sidebar({
               projectsContentId={projectsContentId}
               onToggleProjects={() => setProjectsCollapsed(!projectsCollapsed)}
             />
+            <ProjectsSearch value={projectsQuery} onChange={handleProjectsQuery} />
             <div className="flex min-h-0 flex-1 flex-col">
               <div
                 id={projectsContentId}
@@ -197,6 +215,8 @@ function Sidebar({
                   </React.Suspense>
                 ) : (
                   <WorktreeList
+                    searchQuery={projectsQuery}
+                    onClearSearch={() => setProjectsQuery('')}
                     scrollOffsetRef={worktreeScrollOffsetRef}
                     scrollAnchorRef={worktreeScrollAnchorRef}
                     workspaceBoardOpen={workspaceBoardOpen}

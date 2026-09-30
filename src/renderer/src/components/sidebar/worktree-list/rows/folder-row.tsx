@@ -112,6 +112,7 @@ export function renderFolderWorkspaceVirtualRow(args: {
         <WorktreeCard
           worktree={folderWorktree}
           repo={undefined}
+          searchProjectLabel={row.searchProjectLabel}
           isActive={ctx.activeWorktreeId === folderWorktree.id}
           isCurrentWorktree={ctx.currentWorktreeId === folderWorktree.id}
           contentIndent={cardContentIndent}

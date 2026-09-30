@@ -37,8 +37,14 @@ import { useVisibleSidebarWorktrees } from './worktree-list/listing/use-visible-
 import { useWorktreeStatusMutations } from './worktree-list/drag/use-status-mutations'
 import { shouldFiltersHideAllRows } from './sidebar-empty-state-gate'
 import { buildWorktreeManualOrderCatalog } from './worktree-manual-order-catalog'
+import { filterProjectsSearch } from './projects-search'
+import { rankProjectsSearchRows } from './ranked-search-rows'
+
+const SEARCH_EXPANDED_GROUPS = new Set<string>()
 
 type WorktreeListProps = {
+  searchQuery?: string
+  onClearSearch?: () => void
   scrollOffsetRef: React.MutableRefObject<number>
   scrollAnchorRef: React.MutableRefObject<VirtualizedScrollAnchor>
   workspaceBoardOpen?: boolean
@@ -48,6 +54,8 @@ type WorktreeListProps = {
 }
 
 const WorktreeList = React.memo(function WorktreeList({
+  searchQuery = '',
+  onClearSearch,
   scrollOffsetRef,
   scrollAnchorRef,
   workspaceBoardOpen = false,
@@ -110,16 +118,53 @@ const WorktreeList = React.memo(function WorktreeList({
     () => buildWorktreeManualOrderCatalog({ worktrees: allWorktrees, folderWorkspaces }),
     [allWorktrees, folderWorkspaces]
   )
-  const { visibleWorktrees, pairedDeviceIdsByEnvironment } = useVisibleSidebarWorktrees({
+  const { visibleWorktrees: unsearchedWorktrees, pairedDeviceIdsByEnvironment } =
+    useVisibleSidebarWorktrees({
+      filterState,
+      sortBy,
+      sortedIds,
+      repoMap,
+      worktreeLineageById,
+      defaultHostId,
+      agentSendTargetWorktreeId
+    })
+  const hostVisibleScope = useSidebarHostVisibleScope({
     filterState,
-    sortBy,
-    sortedIds,
-    repoMap,
-    worktreeLineageById,
     defaultHostId,
-    agentSendTargetWorktreeId
+    repos,
+    projectGroups,
+    folderWorkspaces,
+    pairedDeviceIdsByEnvironment
   })
-  const effectiveCollapsedGroups = useEffectiveCollapsedGroups({
+  const searchResults = useMemo(
+    () =>
+      filterProjectsSearch({
+        query: searchQuery,
+        worktrees: unsearchedWorktrees,
+        repos: hostVisibleScope.visibleReposForRows,
+        projectGroups: hostVisibleScope.visibleProjectGroupsForRows,
+        folderWorkspaces: hostVisibleScope.visibleFolderWorkspacesForRows,
+        projects: projectGrouping.projects,
+        defaultHostId
+      }),
+    [
+      searchQuery,
+      unsearchedWorktrees,
+      hostVisibleScope.visibleReposForRows,
+      hostVisibleScope.visibleProjectGroupsForRows,
+      hostVisibleScope.visibleFolderWorkspacesForRows,
+      projectGrouping.projects,
+      defaultHostId
+    ]
+  )
+  const visibleWorktrees = searchResults.worktrees
+  const visibleScope = {
+    visibleReposForRows: searchResults.repos,
+    visibleProjectGroupsForRows: searchResults.projectGroups,
+    visibleFolderWorkspacesForRows: searchResults.folderWorkspaces
+  }
+  const searchActive = Boolean(searchQuery.trim())
+  const savedCollapsedGroups = useEffectiveCollapsedGroups({
     collapsedGroups,
     agentSendTargetWorktreeId,
     groupBy,
@@ -136,21 +181,14 @@ const WorktreeList = React.memo(function WorktreeList({
     folderWorkspaces,
     defaultHostId
   })
-  const visibleScope = useSidebarHostVisibleScope({
-    filterState,
-    defaultHostId,
-    repos,
-    projectGroups,
-    folderWorkspaces,
-    pairedDeviceIdsByEnvironment
-  })
+  const effectiveCollapsedGroups = searchActive ? SEARCH_EXPANDED_GROUPS : savedCollapsedGroups
   const externalWorktreeCards = useSidebarExternalWorktreeCards({
     repos,
     visibleReposForRows: visibleScope.visibleReposForRows,
     detectedWorktreesByRepo,
     filterRepoIds: filterState.filterRepoIds
   })
-  const rowModel = useSidebarSectionRows({
+  const groupedRowModel = useSidebarSectionRows({
     groupBy,
     projectOrderBy,
     pinnedDisplayPolicy,
@@ -174,6 +212,25 @@ const WorktreeList = React.memo(function WorktreeList({
     visibleWorkspaceHostIds: filterState.visibleWorkspaceHostIds,
     workspaceHostScope: filterState.workspaceHostScope
   })
+  // Search is a globally ranked result list: saved grouping/pinning must not bury
+  // a branch hit below unrelated project/path matches. Clearing restores grouping.
+  const rankedSectionRows = useMemo(
+    () =>
+      searchActive
+        ? rankProjectsSearchRows(
+            groupedRowModel.sectionRows,
+            searchResults.worktreeScores,
+            searchResults.folderScores
+          )
+        : groupedRowModel.sectionRows,
+    [
+      searchActive,
+      groupedRowModel.sectionRows,
+      searchResults.worktreeScores,
+      searchResults.folderScores
+    ]
+  )
+  const rowModel = { ...groupedRowModel, sectionRows: rankedSectionRows }
   const selection = useSidebarWorktreeSelection({
     sectionRows: rowModel.sectionRows,
     pinnedDisplayPolicy
@@ -248,7 +305,7 @@ const WorktreeList = React.memo(function WorktreeList({
   })
 
   const filtersHideAllRows = shouldFiltersHideAllRows({
-    hasFilters,
+    hasFilters: hasFilters || searchActive,
     visibleWorktreeCount: visibleWorktrees.length,
     visibleFolderWorkspaceCount: visibleScope.visibleFolderWorkspacesForRows.length,
     placeholderRepoCount: rowModel.placeholderRepoIds.size,
@@ -256,7 +313,13 @@ const WorktreeList = React.memo(function WorktreeList({
   })
   // Why: when active filters hide every row, the Clear Filters empty state must win over Project Group headers.
   if (rowModel.rows.length === 0 || filtersHideAllRows) {
-    return <SidebarWorktreeListEmptyState hasFilters={hasFilters} onClearFilters={clearFilters} />
+    return (
+      <SidebarWorktreeListEmptyState
+        hasFilters={hasFilters || searchActive}
+        searchActive={searchActive}
+        onClearFilters={searchActive && onClearSearch ? onClearSearch : clearFilters}
+      />
+    )
   }
 
   return (
