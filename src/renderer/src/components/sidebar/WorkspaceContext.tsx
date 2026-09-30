@@ -12,6 +12,7 @@ export function WorkspaceContext({
   fallbackBranch,
   fallbackPath,
   showBranch = false,
+  showTitles = true,
   compact = false
 }: {
   workspace?: Worktree
@@ -19,6 +20,7 @@ export function WorkspaceContext({
   fallbackBranch?: string
   fallbackPath?: string
   showBranch?: boolean
+  showTitles?: boolean
   compact?: boolean
 }) {
   const repos = useAppStore((state) => state.repos)
@@ -42,18 +44,26 @@ export function WorkspaceContext({
       )}
     >
       {showBranch && (
-        <span data-workspace-context-branch className="truncate" title={context.branch}>
+        <span
+          data-workspace-context-branch
+          className="truncate"
+          title={showTitles ? context.branch : undefined}
+        >
           {context.branch}
         </span>
       )}
-      <span data-workspace-context-groups className="truncate" title={context.groups}>
+      <span
+        data-workspace-context-groups
+        className="truncate"
+        title={showTitles ? context.groups : undefined}
+      >
         {context.groups}
       </span>
       <span
         data-workspace-context-path
         className={cn('block truncate text-left', compact ? 'text-[9px]' : 'text-[10px]')}
         dir="rtl"
-        title={context.path}
+        title={showTitles ? context.path : undefined}
       >
         <bdi dir="ltr">{context.path}</bdi>
       </span>

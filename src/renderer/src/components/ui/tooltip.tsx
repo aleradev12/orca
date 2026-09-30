@@ -32,25 +32,37 @@ function TooltipContent({
   className,
   sideOffset = 0,
   showArrow = true,
+  variant = 'label',
   children,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content> & { showArrow?: boolean }) {
+}: React.ComponentProps<typeof TooltipPrimitive.Content> & {
+  showArrow?: boolean
+  variant?: 'label' | 'surface'
+}) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
+        data-variant={variant}
         sideOffset={sideOffset}
         // Why: tooltip portals can be triggered from inside menus/popovers.
         // Keep labels above those floating surfaces instead of hidden behind them.
         className={cn(
           'pointer-events-none z-[90] w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-foreground px-3 py-1.5 text-xs text-balance text-background fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
+          variant === 'surface' &&
+            'border border-border bg-popover text-popover-foreground shadow-md',
           className
         )}
         {...props}
       >
         {children}
         {showArrow ? (
-          <TooltipPrimitive.Arrow className="size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground" />
+          <TooltipPrimitive.Arrow
+            className={cn(
+              'size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]',
+              variant === 'surface' ? 'bg-popover fill-popover' : 'bg-foreground fill-foreground'
+            )}
+          />
         ) : null}
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
