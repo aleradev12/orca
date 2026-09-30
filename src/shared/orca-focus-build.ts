@@ -7,3 +7,7 @@ export const ORCA_FOCUS_APP_ID = ORCA_FOCUS_TEST_BUILD
   ? 'local.orca.focus.test'
   : 'local.orca.focus'
 export const ORCA_FOCUS_PROFILE = ORCA_FOCUS_TEST_BUILD ? 'orca-focus-test' : 'orca-focus'
+
+export function getFocusProfileName(isDev: boolean): string {
+  return isDev ? `${ORCA_FOCUS_PROFILE}-dev` : ORCA_FOCUS_PROFILE
+}
