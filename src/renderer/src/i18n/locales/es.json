@@ -15137,8 +15137,9 @@
         }
       },
       "creation": {
-        "readyToast": "{{name}} está listo",
-        "openReady": "Abrir"
+        "worktreeReadyToast": "El worktree {{name}} está listo",
+        "workspaceReadyToast": "El espacio de trabajo {{name}} está listo",
+        "goToWorktree": "Ir al worktree"
       }
     },
     "agentSessionContinuation": {

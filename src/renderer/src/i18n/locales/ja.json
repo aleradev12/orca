@@ -17990,8 +17990,9 @@
         }
       },
       "creation": {
-        "readyToast": "{{name}} の準備ができました",
-        "openReady": "開く"
+        "worktreeReadyToast": "ワークツリー {{name}} の準備ができました",
+        "workspaceReadyToast": "ワークスペース {{name}} の準備ができました",
+        "goToWorktree": "ワークツリーに移動"
       }
     },
     "agentSessionContinuation": {

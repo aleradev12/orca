@@ -34,6 +34,17 @@ function isPendingCreationSurfaceVisible(creationId: string): boolean {
   return state.activeView === 'terminal' && state.activePendingCreationId === creationId
 }
 
+// Why: the created row is listed before completion, so a user may already have opened it.
+function isCreatedWorkspaceInView(creationId: string, worktreeId: string): boolean {
+  const state = useAppStore.getState()
+  return (
+    isPendingCreationSurfaceVisible(creationId) ||
+    (state.activeView === 'terminal' &&
+      state.activePendingCreationId === null &&
+      state.activeWorktreeId === worktreeId)
+  )
+}
+
 export async function executeWorktreeCreation(
   creationId: string,
   request: WorktreeCreationRequest
@@ -147,10 +158,10 @@ export async function executeWorktreeCreation(
     ? undefined
     : buildWorktreeCreationStartupOpt(preparedRequest, backendSpawned)
 
-  // Why: only a user still watching the creation surface is handed the new
-  // workspace; anyone who moved on (another workspace or an app view) keeps
-  // their place and gets a toast instead (#9944).
-  const shouldActivateOnCompletion = isPendingCreationSurfaceVisible(creationId)
+  // Why: only a user still watching the creation surface (or already on the new
+  // workspace) is handed it; anyone who moved on (another workspace or an app
+  // view) keeps their place and gets a toast instead (#9944).
+  const shouldActivateOnCompletion = isCreatedWorkspaceInView(creationId, worktree.id)
 
   // Why: the worktree exists past this point and nothing awaits this caller, so
   // each follow-up step is best-effort — an escaped throw would strand the
@@ -294,7 +305,11 @@ export async function executeWorktreeCreation(
     }
   }
 
-  if (!shouldActivateOnCompletion && useAppStore.getState().pendingWorktreeCreations[creationId]) {
+  if (
+    !shouldActivateOnCompletion &&
+    useAppStore.getState().pendingWorktreeCreations[creationId] &&
+    !isCreatedWorkspaceInView(creationId, worktree.id)
+  ) {
     try {
       showWorktreeCreationReadyToast(worktree)
     } catch (error) {

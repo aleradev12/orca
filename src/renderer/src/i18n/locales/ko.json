@@ -17990,8 +17990,9 @@
         }
       },
       "creation": {
-        "readyToast": "{{name}} 준비 완료",
-        "openReady": "열기"
+        "worktreeReadyToast": "작업 트리 {{name}} 준비 완료",
+        "workspaceReadyToast": "워크스페이스 {{name}} 준비 완료",
+        "goToWorktree": "작업 트리로 이동"
       }
     },
     "agentSessionContinuation": {

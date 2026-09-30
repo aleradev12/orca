@@ -18133,8 +18133,9 @@
         }
       },
       "creation": {
-        "readyToast": "{{name}} is ready",
-        "openReady": "Open"
+        "worktreeReadyToast": "Worktree {{name}} is ready",
+        "workspaceReadyToast": "Workspace {{name}} is ready",
+        "goToWorktree": "Go to worktree"
       }
     },
     "agentSessionContinuation": {

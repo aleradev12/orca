@@ -6,24 +6,27 @@ import type {
 import type { CreateWorktreeResult } from '../../../shared/worktree/create-types'
 import type * as EphemeralVmWorktreeCreationModule from '@/lib/ephemeral-vm-worktree-creation'
 
-type ReadyToastCall = { message: string; label: string; onClick: () => void }
+type ReadyToastCall = { message: string; onClick: () => void }
 
-const { readyToast, attachVmRuntime } = vi.hoisted(() => {
+const { readyToast, attachVmRuntime, launchStructuredSession } = vi.hoisted(() => {
   const calls: ReadyToastCall[] = []
   return {
     readyToast: { calls },
-    attachVmRuntime: vi.fn<() => Promise<void>>(async () => {})
+    attachVmRuntime: vi.fn<() => Promise<void>>(async () => {}),
+    launchStructuredSession: vi.fn()
   }
 })
 
 type NavigationState = {
   activeView: 'terminal' | 'tasks'
   activePendingCreationId: string | null
+  activeWorktreeId: string | null
   pendingWorktreeCreations: Record<string, PendingWorktreeCreation>
 }
 const navigation: NavigationState = {
   activeView: 'terminal',
   activePendingCreationId: null,
+  activeWorktreeId: null,
   pendingWorktreeCreations: {}
 }
 
@@ -96,16 +99,18 @@ vi.mock('@/lib/worktree-creation-agent-seeds', () => ({
 vi.mock('sonner', () => ({
   toast: {
     error: vi.fn(),
-    success: vi.fn(
-      (message: string, options: { action: { label: string; onClick: () => void } }) => {
-        readyToast.calls.push({ message, ...options.action })
-      }
-    )
+    success: vi.fn((message: string, options: { action: { onClick: () => void } }) => {
+      readyToast.calls.push({ message, onClick: options.action.onClick })
+    })
   }
 }))
 
 vi.mock('@/lib/ephemeral-vm-workspace-target', () => ({
   prepareEphemeralVmWorkspaceTarget: vi.fn()
+}))
+
+vi.mock('@/lib/worktree-creation-structured-session', () => ({
+  launchStructuredWorktreeSession: launchStructuredSession
 }))
 
 vi.mock('@/lib/ephemeral-vm-worktree-creation', async (importOriginal) => ({
@@ -153,9 +158,10 @@ async function submitCreate(
   return () => resolve(result)
 }
 
-// setActiveWorktree clears the pending-creation pointer when the user picks another workspace.
-function selectAnotherWorkspace(): void {
+// setActiveWorktree clears the pending-creation pointer when the user picks a workspace.
+function selectWorkspace(worktreeId: string): void {
   store.activePendingCreationId = null
+  store.activeWorktreeId = worktreeId
 }
 
 beforeEach(() => {
@@ -163,20 +169,21 @@ beforeEach(() => {
   readyToast.calls.length = 0
   store.activeView = 'terminal'
   store.activePendingCreationId = null
+  store.activeWorktreeId = null
   store.pendingWorktreeCreations = {}
 })
 
 describe('a creation that finishes after the user moved on (#9944)', () => {
   it('keeps the user on the workspace they switched to and offers the new one in a toast', async () => {
     const finish = await submitCreate()
-    selectAnotherWorkspace()
+    selectWorkspace('wt-other')
     finish()
     await vi.waitFor(() => expect(store.removePendingWorktreeCreation).toHaveBeenCalled())
 
     expect(activateAndRevealWorktree).not.toHaveBeenCalled()
     expect(queueWorkspaceActivationTerminalFocus).not.toHaveBeenCalled()
     expect(readyToast.calls).toHaveLength(1)
-    expect(readyToast.calls[0]).toMatchObject({ message: 'Feature is ready', label: 'Open' })
+    expect(readyToast.calls[0]?.message).toBe('Worktree Feature is ready')
 
     readyToast.calls[0]?.onClick()
     expect(activateAndRevealWorktree).toHaveBeenCalledWith('wt-1', {
@@ -235,6 +242,44 @@ describe('a creation that finishes after the user moved on (#9944)', () => {
     await vi.waitFor(() => expect(attachVmRuntime).toHaveBeenCalledTimes(1))
     await new Promise((resolve) => setTimeout(resolve, 0))
 
+    expect(activateAndRevealWorktree).not.toHaveBeenCalled()
+    expect(readyToast.calls).toHaveLength(0)
+  })
+
+  it('hands the workspace over without a toast to a user who already opened it', async () => {
+    const finish = await submitCreate()
+    // The created row is listed before completion; clicking it opens the new workspace.
+    selectWorkspace('wt-1')
+    finish()
+    await vi.waitFor(() => expect(store.removePendingWorktreeCreation).toHaveBeenCalled())
+
+    expect(activateAndRevealWorktree).toHaveBeenCalledWith('wt-1', {
+      sidebarRevealBehavior: 'auto'
+    })
+    expect(queueWorkspaceActivationTerminalFocus).toHaveBeenCalledWith('wt-1', {
+      primaryTabId: null
+    })
+    expect(readyToast.calls).toHaveLength(0)
+  })
+
+  it('does not toast a user who opened the new workspace while its chat was starting', async () => {
+    launchStructuredSession.mockImplementationOnce(
+      async ({ worktreeId }: { worktreeId: string }) => {
+        selectWorkspace(worktreeId)
+        return { accepted: true, cancelled: false, activation: false, primaryTabId: null }
+      }
+    )
+    const finish = await submitCreate(
+      makeCreateResult(),
+      makeRequest({ agent: 'claude', agentLaunchRoute: 'structured-native-chat' })
+    )
+    selectWorkspace('wt-other')
+    finish()
+    await vi.waitFor(() => expect(store.removePendingWorktreeCreation).toHaveBeenCalled())
+
+    expect(launchStructuredSession).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeId: 'wt-1', shouldActivateOnCompletion: false })
+    )
     expect(activateAndRevealWorktree).not.toHaveBeenCalled()
     expect(readyToast.calls).toHaveLength(0)
   })
