@@ -305,11 +305,7 @@ export async function executeWorktreeCreation(
     }
   }
 
-  if (
-    !shouldActivateOnCompletion &&
-    useAppStore.getState().pendingWorktreeCreations[creationId] &&
-    !isCreatedWorkspaceInView(creationId, worktree.id)
-  ) {
+  if (!shouldActivateOnCompletion && useAppStore.getState().pendingWorktreeCreations[creationId]) {
     try {
       showWorktreeCreationReadyToast(worktree)
     } catch (error) {

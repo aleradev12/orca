@@ -8,12 +8,11 @@ import type * as EphemeralVmWorktreeCreationModule from '@/lib/ephemeral-vm-work
 
 type ReadyToastCall = { message: string; onClick: () => void }
 
-const { readyToast, attachVmRuntime, launchStructuredSession } = vi.hoisted(() => {
+const { readyToast, attachVmRuntime } = vi.hoisted(() => {
   const calls: ReadyToastCall[] = []
   return {
     readyToast: { calls },
-    attachVmRuntime: vi.fn<() => Promise<void>>(async () => {}),
-    launchStructuredSession: vi.fn()
+    attachVmRuntime: vi.fn<() => Promise<void>>(async () => {})
   }
 })
 
@@ -107,10 +106,6 @@ vi.mock('sonner', () => ({
 
 vi.mock('@/lib/ephemeral-vm-workspace-target', () => ({
   prepareEphemeralVmWorkspaceTarget: vi.fn()
-}))
-
-vi.mock('@/lib/worktree-creation-structured-session', () => ({
-  launchStructuredWorktreeSession: launchStructuredSession
 }))
 
 vi.mock('@/lib/ephemeral-vm-worktree-creation', async (importOriginal) => ({
@@ -259,28 +254,6 @@ describe('a creation that finishes after the user moved on (#9944)', () => {
     expect(queueWorkspaceActivationTerminalFocus).toHaveBeenCalledWith('wt-1', {
       primaryTabId: null
     })
-    expect(readyToast.calls).toHaveLength(0)
-  })
-
-  it('does not toast a user who opened the new workspace while its chat was starting', async () => {
-    launchStructuredSession.mockImplementationOnce(
-      async ({ worktreeId }: { worktreeId: string }) => {
-        selectWorkspace(worktreeId)
-        return { accepted: true, cancelled: false, activation: false, primaryTabId: null }
-      }
-    )
-    const finish = await submitCreate(
-      makeCreateResult(),
-      makeRequest({ agent: 'claude', agentLaunchRoute: 'structured-native-chat' })
-    )
-    selectWorkspace('wt-other')
-    finish()
-    await vi.waitFor(() => expect(store.removePendingWorktreeCreation).toHaveBeenCalled())
-
-    expect(launchStructuredSession).toHaveBeenCalledWith(
-      expect.objectContaining({ worktreeId: 'wt-1', shouldActivateOnCompletion: false })
-    )
-    expect(activateAndRevealWorktree).not.toHaveBeenCalled()
     expect(readyToast.calls).toHaveLength(0)
   })
 })

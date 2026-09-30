@@ -14,7 +14,7 @@ export function showWorktreeCreationReadyToast(
 ): void {
   const name = resolveWorktreeDisplayName(worktree)
   const repo = getIndexedRepoMap(useAppStore.getState().repos).get(worktree.repoId)
-  // Why: a folder repo's workspace is not a git worktree, so it is not called one.
+  // Why: a folder repo's workspace is not a git worktree, so only the title says Workspace; the button keeps one label for both.
   const title =
     repo && isFolderRepo(repo)
       ? translate(
