@@ -93,6 +93,7 @@ export function SortableFocusPin({
                     fallbackBranch={pin.name}
                     fallbackPath={pin.path}
                     showBranch
+                    showTitles={false}
                     compact
                   />
                 </span>
@@ -110,13 +111,14 @@ export function SortableFocusPin({
             </button>
           </TooltipTrigger>
         </ContextMenuTrigger>
-        <TooltipContent side="right">
+        <TooltipContent side="right" variant="surface">
           <div>{label}</div>
           <WorkspaceContext
             workspace={workspace}
             fallbackBranch={pin.name}
             fallbackPath={pin.path}
             showBranch
+            showTitles={false}
           />
           {workspace?.isUnread && <div>Unread</div>}
           {!available && <div>Workspace unavailable · right-click to edit or Unfocus</div>}
