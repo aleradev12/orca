@@ -1,4 +1,5 @@
 import { app, session } from 'electron'
+import { getMainE2EConfig } from '../e2e-config'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { applyBackgroundActivationPolicy } from '../window/foreground-activation-policy'
 import { applyElectronProxySettings } from '../network/proxy-settings'
@@ -165,7 +166,8 @@ export async function initializeReadyFoundation(): Promise<void> {
     dataFile: profile.dataFile,
     force: process.env.ORCA_ALWAYS_REPORT_SECRET_PROTECTION === '1',
     deferUntilFirstWindow: !state.isServeMode,
-    skipInDevelopment: is.dev
+    // Packaged UI tests also use a disposable HOME without a macOS login keychain.
+    skipInDevelopment: is.dev || getMainE2EConfig().userDataDir !== null
   })
   // Why here: the host key store is a sidecar of the same profile, and every SSH connect consults
   // it. Left unbound it reports nothing trusted, which is safe but silently discards our own
