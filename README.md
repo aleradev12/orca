@@ -1,3 +1,5 @@
+> **Personal Focus fork:** `focus/main` contains the custom sidebar/search changes; `main` remains an upstream mirror. See [fork history, screenshots and update policy](docs/readme/focus-fork.md). Download links and installation commands below describe **upstream Orca**, not a standalone Focus release. Native fork packaging is tracked in [#9](https://github.com/aleradev12/orca/issues/9).
+
 <h1 align="center">
   <a href="https://onOrca.dev"><img src="resources/build/icon.png" alt="Orca" width="64" valign="middle" /></a> Orca
 </h1>
