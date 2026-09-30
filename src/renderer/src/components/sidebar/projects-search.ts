@@ -1,3 +1,4 @@
+import { getWorkspaceContext } from './workspace-context'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
@@ -127,10 +128,14 @@ export function filterProjectsSearch({
       project.sourceRepoIds.map((id) => [id, project.displayName] as const)
     )
   )
+  const contextByRepo = new Map(
+    repos.map((repo) => [repo, getWorkspaceContext({ repo, groups: projectGroups }).groups])
+  )
   const repoFields = (repo: Repo) => [
     repo.displayName,
     repo.path,
-    projectNameByRepo.get(repo.id) ?? ''
+    projectNameByRepo.get(repo.id) ?? '',
+    contextByRepo.get(repo) ?? ''
   ]
   const repoHost = (repo: Repo) =>
     repo.connectionId || repo.executionHostId ? getRepoExecutionHostId(repo) : defaultHostId
@@ -148,8 +153,10 @@ export function filterProjectsSearch({
       : candidates[0]
     const score = scoreProjectsFields(query, [
       { text: worktree.branch, priority: 0 },
+      { text: worktree.branch.replace(/^refs\/heads\//, ''), priority: 0 },
       { text: repo?.displayName ?? '', priority: 1 },
       { text: repo ? (projectNameByRepo.get(repo.id) ?? '') : '', priority: 1 },
+      { text: repo ? (contextByRepo.get(repo) ?? '') : '', priority: 1 },
       { text: repo?.path ?? '', priority: 2 },
       { text: worktree.displayName ?? '', priority: 3 },
       { text: worktree.path, priority: 4 }

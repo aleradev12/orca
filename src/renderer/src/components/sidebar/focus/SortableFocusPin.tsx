@@ -21,6 +21,7 @@ import { FocusPicker } from './FocusPicker'
 import type { FocusDocument, FocusPin } from './focus-state'
 import { useFocusStore } from './use-focus-store'
 import { FocusUnreadIndicator } from './FocusUnreadIndicator'
+import { WorkspaceContext } from '../WorkspaceContext'
 
 export function SortableFocusPin({
   pin,
@@ -87,19 +88,13 @@ export function SortableFocusPin({
               {mode === 'list' && (
                 <span className="flex min-w-0 flex-1 flex-col pr-3">
                   <span className="truncate leading-4">{label}</span>
-                  <span
-                    data-focus-worktree-name
-                    className="truncate text-[10px] leading-3 text-muted-foreground"
-                  >
-                    {workspace?.displayName || workspace?.branch || pin.name}
-                  </span>
-                  <span
-                    data-focus-worktree-path
-                    className="truncate text-[9px] leading-3 text-muted-foreground"
-                    title={workspace?.path ?? pin.path}
-                  >
-                    {workspace?.path ?? pin.path}
-                  </span>
+                  <WorkspaceContext
+                    workspace={workspace}
+                    fallbackBranch={pin.name}
+                    fallbackPath={pin.path}
+                    showBranch
+                    compact
+                  />
                 </span>
               )}
               {available && workspace && (
@@ -117,7 +112,12 @@ export function SortableFocusPin({
         </ContextMenuTrigger>
         <TooltipContent side="right">
           <div>{label}</div>
-          <div className="text-xs opacity-80">{workspace?.path ?? pin.path}</div>
+          <WorkspaceContext
+            workspace={workspace}
+            fallbackBranch={pin.name}
+            fallbackPath={pin.path}
+            showBranch
+          />
           {workspace?.isUnread && <div>Unread</div>}
           {!available && <div>Workspace unavailable · right-click to edit or Unfocus</div>}
         </TooltipContent>
