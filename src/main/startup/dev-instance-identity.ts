@@ -1,9 +1,10 @@
+import { ORCA_FOCUS_APP_NAME, ORCA_FOCUS_APP_ID } from '../../shared/orca-focus-build'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { AppIdentity } from '../../shared/app-identity'
 
-const BASE_APP_NAME = 'Orca'
-const BASE_APP_USER_MODEL_ID = 'com.stablyai.orca'
+const BASE_APP_NAME = ORCA_FOCUS_APP_NAME
+const BASE_APP_USER_MODEL_ID = ORCA_FOCUS_APP_ID
 const MAX_LABEL_LENGTH = 80
 
 export type DevInstanceIdentity = AppIdentity & {

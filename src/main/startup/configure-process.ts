@@ -1,3 +1,8 @@
+import {
+  ORCA_FOCUS_BUILD,
+  ORCA_FOCUS_APP_NAME,
+  ORCA_FOCUS_PROFILE
+} from '../../shared/orca-focus-build'
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -208,6 +213,11 @@ export function configureDevUserDataPath(isDev: boolean): void {
     return
   }
 
+  if (ORCA_FOCUS_BUILD) {
+    app.setName(ORCA_FOCUS_APP_NAME)
+    app.setPath('userData', join(app.getPath('appData'), ORCA_FOCUS_PROFILE))
+    return
+  }
   if (!isDev) {
     return
   }
@@ -235,6 +245,9 @@ export function configureOrcaUserDataPathEnv(): void {
 }
 
 export function shouldInstallManagedHooks(isDev: boolean): boolean {
+  if (ORCA_FOCUS_BUILD) {
+    return false
+  }
   void isDev
   // Why: managed hooks now target Orca-owned Codex homes, not ~/.codex, so keep install on for all agents until each gets its own seam.
   return true

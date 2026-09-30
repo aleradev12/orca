@@ -1,3 +1,4 @@
+import { ORCA_FOCUS_BUILD } from '../../shared/orca-focus-build'
 import { mkdir, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { CliInstallStatus } from '../../shared/cli-install-types'
@@ -29,6 +30,22 @@ export class CliInstaller extends CliPathRegistration {
   }
 
   async getStatus(): Promise<CliInstallStatus> {
+    if (ORCA_FOCUS_BUILD) {
+      return {
+        platform: this.platform,
+        commandName: this.commandName,
+        commandPath: null,
+        pathDirectory: null,
+        pathConfigured: false,
+        launcherPath: null,
+        installMethod: null,
+        supported: false,
+        state: 'unsupported',
+        currentTarget: null,
+        unsupportedReason: 'launch_mode_unavailable',
+        detail: 'Orca Focus does not register the production orca command.'
+      }
+    }
     const defaultSpec = this.resolveInstallSpec()
     if (!defaultSpec) {
       return {
@@ -102,6 +119,9 @@ export class CliInstaller extends CliPathRegistration {
   }
 
   async install(): Promise<CliInstallStatus> {
+    if (ORCA_FOCUS_BUILD) {
+      throw new Error('CLI registration is disabled in Orca Focus')
+    }
     return this.runAppImageRegistrationOperation(() => this.installUnlocked())
   }
 
@@ -159,6 +179,9 @@ export class CliInstaller extends CliPathRegistration {
   }
 
   async remove(): Promise<CliInstallStatus> {
+    if (ORCA_FOCUS_BUILD) {
+      throw new Error('CLI registration is disabled in Orca Focus')
+    }
     return this.runAppImageRegistrationOperation(() => this.removeUnlocked())
   }
 
