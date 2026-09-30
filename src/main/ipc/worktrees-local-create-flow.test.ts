@@ -786,6 +786,47 @@ describe('registerWorktreeHandlers', () => {
     expect(result.setup?.command).toContain('printf')
   })
 
+  it('splits split-mode setup into the startup terminal without surfacing the workspace', async () => {
+    addWorktreeMock.mockResolvedValue({})
+    listWorktreesMock.mockResolvedValueOnce([
+      {
+        path: '/workspace/improve-dashboard',
+        head: 'def',
+        branch: 'improve-dashboard',
+        isBare: false,
+        isMainWorktree: false
+      }
+    ])
+    store.getSettings.mockReturnValue({
+      branchPrefix: 'none',
+      nestWorkspaces: false,
+      refreshLocalBaseRefOnWorktreeCreate: false,
+      workspaceDir: '/workspace',
+      setupScriptLaunchMode: 'split-vertical'
+    })
+    loadHooksMock.mockReturnValue({ scripts: { setup: 'pnpm install' } })
+    getEffectiveHooksMock.mockReturnValue({ scripts: { setup: 'pnpm install' } })
+    getEffectiveHooksFromConfigMock.mockReturnValue({ scripts: { setup: 'pnpm install' } })
+    shouldRunSetupForCreateMock.mockReturnValue(true)
+
+    await handlers['worktrees:create'](null, {
+      repoId: 'repo-1',
+      name: 'improve-dashboard',
+      createdWithAgent: 'claude',
+      startup: { command: 'claude' }
+    })
+
+    expect(runtimeStub.createTerminal).toHaveBeenCalledTimes(1)
+    // A user who moved on must not be scrolled to the new workspace by its setup pane (#9944).
+    expect(runtimeStub.splitTerminal).toHaveBeenCalledWith('term-startup', {
+      direction: 'vertical',
+      command: expect.stringContaining('setup-runner.sh'),
+      env: expect.any(Object),
+      activate: false,
+      surfaceOwner: false
+    })
+  })
+
   it('rejects ask-policy creates before mutating git state when setup decision is missing', async () => {
     getEffectiveHooksMock.mockReturnValue({
       scripts: {

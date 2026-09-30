@@ -72,8 +72,9 @@ vi.mock('@/lib/browser-uuid', () => ({
   createBrowserUuid: () => 'creation-1'
 }))
 
+// Agent creates return no primary tab: the agent's own surface is the worktree's active tab.
 vi.mock('@/lib/worktree-activation', () => ({
-  activateAndRevealWorktree: vi.fn(() => ({ primaryTabId: 'tab-1' }))
+  activateAndRevealWorktree: vi.fn(() => ({ primaryTabId: null }))
 }))
 
 vi.mock('@/lib/worktree-initial-terminal-seeding', () => ({
@@ -86,6 +87,10 @@ vi.mock('@/lib/workspace-activation-terminal-focus', () => ({
 
 vi.mock('@/lib/new-workspace', () => ({
   ensureAgentStartupInTerminal: vi.fn()
+}))
+
+vi.mock('@/lib/worktree-creation-agent-seeds', () => ({
+  seedAgentTabStateAfterWorktreeCreate: vi.fn()
 }))
 
 vi.mock('sonner', () => ({
@@ -113,7 +118,7 @@ import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
 import { queueWorkspaceActivationTerminalFocus } from '@/lib/workspace-activation-terminal-focus'
 import { runBackgroundWorktreeCreation } from './worktree-creation-flow'
 
-function makeRequest(): WorktreeCreationRequest {
+function makeRequest(overrides: Partial<WorktreeCreationRequest> = {}): WorktreeCreationRequest {
   return {
     repoId: 'repo-1',
     name: 'feature',
@@ -123,7 +128,8 @@ function makeRequest(): WorktreeCreationRequest {
     note: '',
     startupPlan: null,
     quickPrompt: '',
-    quickTelemetry: null
+    quickTelemetry: null,
+    ...overrides
   }
 }
 
@@ -136,11 +142,12 @@ function makeCreateResult(overrides: Partial<CreateWorktreeResult> = {}): Create
 
 // Submits like the composer does, holding createWorktree open until the test resolves it.
 async function submitCreate(
-  result: CreateWorktreeResult = makeCreateResult()
+  result: CreateWorktreeResult = makeCreateResult(),
+  request: WorktreeCreationRequest = makeRequest()
 ): Promise<() => void> {
   let resolve!: (value: CreateWorktreeResult) => void
   store.createWorktree.mockReturnValueOnce(new Promise((r) => (resolve = r)))
-  expect(runBackgroundWorktreeCreation(makeRequest())).toBe('creation-1')
+  expect(runBackgroundWorktreeCreation(request)).toBe('creation-1')
   expect(store.activePendingCreationId).toBe('creation-1')
   await vi.waitFor(() => expect(store.createWorktree).toHaveBeenCalledTimes(1))
   return () => resolve(result)
@@ -190,17 +197,30 @@ describe('a creation that finishes after the user moved on (#9944)', () => {
 
   it('hands a backend-started agent workspace to a user still watching, without a toast', async () => {
     const finish = await submitCreate(
-      makeCreateResult({ startupTerminal: { spawned: true, surface: 'visible' } })
+      makeCreateResult({ startupTerminal: { spawned: true, surface: 'visible' } }),
+      makeRequest({
+        agent: 'claude',
+        startupPlan: {
+          agent: 'claude',
+          launchCommand: 'claude',
+          expectedProcess: 'claude',
+          followupPrompt: null,
+          launchConfig: { agentArgs: '', agentEnv: {} }
+        }
+      })
     )
     finish()
     await vi.waitFor(() => expect(store.removePendingWorktreeCreation).toHaveBeenCalled())
 
+    // The host already adopted the agent tab, so activation must seed nothing beside it;
+    // worktree-creation-backend-startup-focus.test.ts pins that this lands focus on that tab.
     expect(activateAndRevealWorktree).toHaveBeenCalledWith('wt-1', {
       sidebarRevealBehavior: 'auto',
+      agent: 'claude',
       backendStartupTerminalSpawned: true
     })
     expect(queueWorkspaceActivationTerminalFocus).toHaveBeenCalledWith('wt-1', {
-      primaryTabId: 'tab-1'
+      primaryTabId: null
     })
     expect(readyToast.calls).toHaveLength(0)
   })
