@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   KeyboardSensor,
   closestCenter,
@@ -15,6 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { SortableFocusPin } from './SortableFocusPin'
 import { FocusViewToggle } from './FocusViewToggle'
+import { WorkspaceContext } from '../WorkspaceContext'
 import { useAppStore } from '@/store'
 import { useAllWorktrees } from '@/store/selectors'
 import { cn } from '@/lib/utils'
@@ -35,6 +37,8 @@ export function FocusPanel() {
   const error = useFocusStore((state) => state.error)
   const setMode = useFocusStore((state) => state.setMode)
   const movePin = useFocusStore((state) => state.movePin)
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const draggedPin = pins.find((pin) => pin.identity === draggedId)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -89,7 +93,10 @@ export function FocusPanel() {
                 'Press Space to reorder a Focus item, arrow keys to move, Space or Enter to drop, and Escape to cancel. Enter opens the workspace when not dragging.'
             }
           }}
+          onDragStart={({ active }) => setDraggedId(String(active.id))}
+          onDragCancel={() => setDraggedId(null)}
           onDragEnd={({ active, over }) => {
+            setDraggedId(null)
             if (over && active.id !== over.id) {
               movePin(String(active.id), String(over.id))
             }
@@ -117,6 +124,40 @@ export function FocusPanel() {
               ))}
             </div>
           </SortableContext>
+          {/* Keep the dragged surface outside the scroll container. Translating
+              its real child expands scrollHeight and feeds an autoscroll loop. */}
+          <DragOverlay dropAnimation={null}>
+            {draggedPin && (
+              <div
+                data-focus-drag-preview
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none flex h-full w-full min-w-0 rounded-md bg-sidebar-accent ring-1 ring-sidebar-ring shadow-sm',
+                  mode === 'grid'
+                    ? 'items-center justify-center text-xl'
+                    : 'items-center gap-2 px-2 py-1.5 text-left text-[13px]'
+                )}
+              >
+                <span className="shrink-0">{draggedPin.emoji}</span>
+                {mode === 'list' && (
+                  <span className="flex min-w-0 flex-1 flex-col pr-3">
+                    <span className="truncate leading-4">
+                      {draggedPin.label ||
+                        catalog.get(draggedPin.identity)?.displayName ||
+                        draggedPin.name}
+                    </span>
+                    <WorkspaceContext
+                      workspace={catalog.get(draggedPin.identity)}
+                      fallbackBranch={draggedPin.name}
+                      fallbackPath={draggedPin.path}
+                      showBranch
+                      compact
+                    />
+                  </span>
+                )}
+              </div>
+            )}
+          </DragOverlay>
         </DndContext>
       )}
     </section>
