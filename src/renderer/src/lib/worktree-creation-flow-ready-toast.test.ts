@@ -4,12 +4,16 @@ import type {
   WorktreeCreationRequest
 } from '@/lib/pending-worktree-creation'
 import type { CreateWorktreeResult } from '../../../shared/worktree/create-types'
+import type * as EphemeralVmWorktreeCreationModule from '@/lib/ephemeral-vm-worktree-creation'
 
 type ReadyToastCall = { message: string; label: string; onClick: () => void }
 
-const { readyToast } = vi.hoisted(() => {
+const { readyToast, attachVmRuntime } = vi.hoisted(() => {
   const calls: ReadyToastCall[] = []
-  return { readyToast: { calls } }
+  return {
+    readyToast: { calls },
+    attachVmRuntime: vi.fn<() => Promise<void>>(async () => {})
+  }
 })
 
 type NavigationState = {
@@ -19,14 +23,18 @@ type NavigationState = {
 }
 const navigation: NavigationState = {
   activeView: 'terminal',
-  activePendingCreationId: 'creation-1',
+  activePendingCreationId: null,
   pendingWorktreeCreations: {}
 }
 
+// Pending-creation actions mirror the real slice: begin points the panel at the entry, remove clears it.
 const store = Object.assign(navigation, {
   settings: {},
   repos: [],
-  beginPendingWorktreeCreation: vi.fn(),
+  beginPendingWorktreeCreation: vi.fn((entry: PendingWorktreeCreation) => {
+    store.pendingWorktreeCreations[entry.creationId] = entry
+    store.activePendingCreationId = entry.creationId
+  }),
   updatePendingWorktreeCreation: vi.fn(
     (creationId: string, patch: Partial<PendingWorktreeCreation>) => {
       const entry = store.pendingWorktreeCreations[creationId]
@@ -37,10 +45,15 @@ const store = Object.assign(navigation, {
   ),
   removePendingWorktreeCreation: vi.fn((creationId: string) => {
     delete store.pendingWorktreeCreations[creationId]
+    if (store.activePendingCreationId === creationId) {
+      store.activePendingCreationId = null
+    }
   }),
   updateWorktreeMeta: vi.fn(),
   setActivePendingWorktreeCreation: vi.fn(),
-  setActiveView: vi.fn(),
+  setActiveView: vi.fn((view: NavigationState['activeView']) => {
+    store.activeView = view
+  }),
   setSidebarOpen: vi.fn(),
   createWorktree: vi.fn<() => Promise<CreateWorktreeResult>>(),
   seedNativeChatLaunchDraft: vi.fn(),
@@ -55,8 +68,12 @@ vi.mock('@/store', () => ({
   }
 }))
 
+vi.mock('@/lib/browser-uuid', () => ({
+  createBrowserUuid: () => 'creation-1'
+}))
+
 vi.mock('@/lib/worktree-activation', () => ({
-  activateAndRevealWorktree: vi.fn(() => false)
+  activateAndRevealWorktree: vi.fn(() => ({ primaryTabId: 'tab-1' }))
 }))
 
 vi.mock('@/lib/worktree-initial-terminal-seeding', () => ({
@@ -86,10 +103,15 @@ vi.mock('@/lib/ephemeral-vm-workspace-target', () => ({
   prepareEphemeralVmWorkspaceTarget: vi.fn()
 }))
 
+vi.mock('@/lib/ephemeral-vm-worktree-creation', async (importOriginal) => ({
+  ...(await importOriginal<typeof EphemeralVmWorktreeCreationModule>()),
+  attachEphemeralVmRuntimeToWorkspace: attachVmRuntime
+}))
+
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
 import { queueWorkspaceActivationTerminalFocus } from '@/lib/workspace-activation-terminal-focus'
-import { continueBackgroundWorktreeCreation } from './worktree-creation-flow'
+import { runBackgroundWorktreeCreation } from './worktree-creation-flow'
 
 function makeRequest(): WorktreeCreationRequest {
   return {
@@ -105,47 +127,42 @@ function makeRequest(): WorktreeCreationRequest {
   }
 }
 
-function makeCreateResult(): CreateWorktreeResult {
-  return { worktree: makeWorktree({ id: 'wt-1', repoId: 'repo-1', displayName: 'Feature' }) }
+function makeCreateResult(overrides: Partial<CreateWorktreeResult> = {}): CreateWorktreeResult {
+  return {
+    worktree: makeWorktree({ id: 'wt-1', repoId: 'repo-1', displayName: 'Feature' }),
+    ...overrides
+  }
 }
 
-// Resolves createWorktree only when the test says so, so it can move the user first.
-function deferCreate(): () => void {
-  let resolve!: (result: CreateWorktreeResult) => void
+// Submits like the composer does, holding createWorktree open until the test resolves it.
+async function submitCreate(
+  result: CreateWorktreeResult = makeCreateResult()
+): Promise<() => void> {
+  let resolve!: (value: CreateWorktreeResult) => void
   store.createWorktree.mockReturnValueOnce(new Promise((r) => (resolve = r)))
-  return () => resolve(makeCreateResult())
+  expect(runBackgroundWorktreeCreation(makeRequest())).toBe('creation-1')
+  expect(store.activePendingCreationId).toBe('creation-1')
+  await vi.waitFor(() => expect(store.createWorktree).toHaveBeenCalledTimes(1))
+  return () => resolve(result)
 }
 
-async function startCreate(): Promise<() => void> {
-  const finish = deferCreate()
-  continueBackgroundWorktreeCreation('creation-1', makeRequest(), { revealCreationSurface: false })
-  await vi.waitFor(() => expect(store.createWorktree).toHaveBeenCalledTimes(1))
-  return finish
+// setActiveWorktree clears the pending-creation pointer when the user picks another workspace.
+function selectAnotherWorkspace(): void {
+  store.activePendingCreationId = null
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   readyToast.calls.length = 0
   store.activeView = 'terminal'
-  store.activePendingCreationId = 'creation-1'
-  store.pendingWorktreeCreations = {
-    'creation-1': {
-      creationId: 'creation-1',
-      phase: 'preparing',
-      status: 'creating',
-      startedAt: 1,
-      indeterminate: false,
-      loaderVisible: true,
-      request: makeRequest()
-    }
-  }
+  store.activePendingCreationId = null
+  store.pendingWorktreeCreations = {}
 })
 
 describe('a creation that finishes after the user moved on (#9944)', () => {
   it('keeps the user on the workspace they switched to and offers the new one in a toast', async () => {
-    const finish = await startCreate()
-    // Selecting a real workspace clears only the pending surface pointer.
-    store.activePendingCreationId = null
+    const finish = await submitCreate()
+    selectAnotherWorkspace()
     finish()
     await vi.waitFor(() => expect(store.removePendingWorktreeCreation).toHaveBeenCalled())
 
@@ -156,12 +173,13 @@ describe('a creation that finishes after the user moved on (#9944)', () => {
 
     readyToast.calls[0]?.onClick()
     expect(activateAndRevealWorktree).toHaveBeenCalledWith('wt-1', {
-      sidebarRevealBehavior: 'auto'
+      sidebarRevealBehavior: 'auto',
+      navigationIntent: 'user-open'
     })
   })
 
   it('toasts when the user left for another app view', async () => {
-    const finish = await startCreate()
+    const finish = await submitCreate()
     store.activeView = 'tasks'
     finish()
     await vi.waitFor(() => expect(store.removePendingWorktreeCreation).toHaveBeenCalled())
@@ -170,22 +188,34 @@ describe('a creation that finishes after the user moved on (#9944)', () => {
     expect(readyToast.calls).toHaveLength(1)
   })
 
-  it('hands the workspace over without a toast when the user is still watching', async () => {
-    const finish = await startCreate()
+  it('hands a backend-started agent workspace to a user still watching, without a toast', async () => {
+    const finish = await submitCreate(
+      makeCreateResult({ startupTerminal: { spawned: true, surface: 'visible' } })
+    )
     finish()
     await vi.waitFor(() => expect(store.removePendingWorktreeCreation).toHaveBeenCalled())
 
-    expect(activateAndRevealWorktree).toHaveBeenCalledTimes(1)
+    expect(activateAndRevealWorktree).toHaveBeenCalledWith('wt-1', {
+      sidebarRevealBehavior: 'auto',
+      backendStartupTerminalSpawned: true
+    })
+    expect(queueWorkspaceActivationTerminalFocus).toHaveBeenCalledWith('wt-1', {
+      primaryTabId: 'tab-1'
+    })
     expect(readyToast.calls).toHaveLength(0)
   })
 
-  it('does not toast a creation cancelled before it finished', async () => {
-    const finish = await startCreate()
-    store.removePendingWorktreeCreation('creation-1')
-    store.activePendingCreationId = null
+  it('does not toast a creation cancelled after the workspace was created', async () => {
+    // Cancel lands while the created workspace is still being wired up, past the post-create cancel check.
+    attachVmRuntime.mockImplementationOnce(async () => {
+      store.removePendingWorktreeCreation('creation-1')
+    })
+    const finish = await submitCreate()
     finish()
+    await vi.waitFor(() => expect(attachVmRuntime).toHaveBeenCalledTimes(1))
     await new Promise((resolve) => setTimeout(resolve, 0))
 
+    expect(activateAndRevealWorktree).not.toHaveBeenCalled()
     expect(readyToast.calls).toHaveLength(0)
   })
 })

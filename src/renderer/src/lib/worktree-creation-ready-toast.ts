@@ -16,7 +16,10 @@ export function showWorktreeCreationReadyToast(
       action: {
         label: translate('components.workspace.creation.openReady', 'Open'),
         onClick: () => {
-          activateAndRevealWorktree(worktree.id, { sidebarRevealBehavior: 'auto' })
+          activateAndRevealWorktree(worktree.id, {
+            sidebarRevealBehavior: 'auto',
+            navigationIntent: 'user-open'
+          })
         }
       }
     }

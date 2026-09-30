@@ -686,7 +686,7 @@ describe('registerWorktreeHandlers', () => {
           launch_source: 'new_workspace_composer',
           request_kind: 'new'
         },
-        activate: true
+        surfaceOwner: false
       }
     )
     expect(runtimeStub.createTerminal).toHaveBeenNthCalledWith(
@@ -699,7 +699,8 @@ describe('registerWorktreeHandlers', () => {
           ORCA_ROOT_PATH: '/workspace/repo',
           ORCA_WORKTREE_PATH: '/workspace/improve-dashboard'
         },
-        activate: false
+        activate: false,
+        surfaceOwner: false
       }
     )
     const startupCreateCall = runtimeStub.createTerminal.mock.calls[0]
@@ -707,6 +708,9 @@ describe('registerWorktreeHandlers', () => {
     if (!startupCreateCall || !setupCreateCall) {
       throw new Error('expected startup and setup terminal calls')
     }
+    // The submitting renderer decides whether to open the new workspace, so the host must not
+    // activate it for the startup terminal (#9944).
+    expect(startupCreateCall[1]).not.toHaveProperty('activate')
     const startupCommand = (startupCreateCall[1] as { command: string }).command
     const setupCommand = (setupCreateCall[1] as { command: string }).command
     expect(startupCommand).toBe('claude --prefill test')
