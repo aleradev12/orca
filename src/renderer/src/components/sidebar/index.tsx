@@ -1,3 +1,4 @@
+import { FocusPanel } from './focus/FocusPanel'
 import React, { useEffect, useMemo } from 'react'
 import { useAppStore } from '@/store'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -161,6 +162,7 @@ function Sidebar({
           <>
             {/* Fixed controls */}
             <SidebarNav />
+            <FocusPanel />
             <SidebarHeader
               onWorkspaceBoardMenuOpenChange={setWorkspaceBoardMenuOpen}
               activityOptionsTarget={setAgentOptionsTarget}
