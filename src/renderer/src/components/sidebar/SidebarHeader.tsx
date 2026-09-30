@@ -6,17 +6,23 @@ import { SidebarHeaderActions } from './sidebar-header-actions'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverAnchor, PopoverArrow, PopoverContent } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Sparkles, Bell } from 'lucide-react'
+import { Sparkles, Bell, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type SidebarHeaderProps = {
   onWorkspaceBoardMenuOpenChange: (open: boolean) => void
   activityOptionsTarget?: React.Ref<HTMLDivElement>
+  projectsCollapsed?: boolean
+  projectsContentId?: string
+  onToggleProjects?: () => void
 }
 
 const SidebarHeader = React.memo(function SidebarHeader({
   onWorkspaceBoardMenuOpenChange,
-  activityOptionsTarget
+  activityOptionsTarget,
+  projectsCollapsed = false,
+  projectsContentId,
+  onToggleProjects
 }: SidebarHeaderProps) {
   // Subscribe this memoized header to locale changes before using translate().
   useTranslation()
@@ -48,14 +54,24 @@ const SidebarHeader = React.memo(function SidebarHeader({
   return (
     <div className="mt-2 flex h-8 min-w-0 items-center justify-between gap-1.5 px-2">
       <div className="flex min-w-0 items-center gap-1">
-        <span
-          // Why truncate: the action cluster is shrink-0, so a long localized title
-          // (es "Espacios de trabajo") otherwise wraps out of the h-8 row.
-          className="min-w-0 truncate select-none pl-2 pr-0.5 text-xs font-semibold text-muted-foreground/80"
-          data-sidebar-section-title={groupBy === 'repo' ? 'projects' : 'workspaces'}
+        <button
+          type="button"
+          aria-expanded={!projectsCollapsed}
+          aria-controls={projectsContentId}
+          onClick={onToggleProjects}
+          className="flex h-7 min-w-0 items-center gap-1 rounded-md pl-2 pr-1 text-xs font-semibold text-muted-foreground/80 hover:text-sidebar-foreground focus-visible:outline-2 focus-visible:outline-sidebar-ring"
         >
-          {sidebarTitle}
-        </span>
+          <span
+            className="truncate"
+            data-sidebar-section-title={groupBy === 'repo' ? 'projects' : 'workspaces'}
+          >
+            {sidebarTitle}
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className={cn('size-3 shrink-0', projectsCollapsed && '-rotate-90')}
+          />
+        </button>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <Popover

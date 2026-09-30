@@ -1,4 +1,5 @@
 import { FocusPanel } from './focus/FocusPanel'
+import { useFocusStore } from './focus/use-focus-store'
 import React, { useEffect, useMemo } from 'react'
 import { useAppStore } from '@/store'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -64,6 +65,9 @@ function Sidebar({
   const agentGroupBy = useAppStore((s) => s.agentsGroupBy)
   const setAgentGroupBy = useAppStore((s) => s.setAgentsGroupBy)
   const [agentQuery, setAgentQuery] = React.useState('')
+  const projectsCollapsed = useFocusStore((state) => state.projectsCollapsed)
+  const setProjectsCollapsed = useFocusStore((state) => state.setProjectsCollapsed)
+  const projectsContentId = React.useId()
   const [agentOptionsTarget, setAgentOptionsTarget] = React.useState<HTMLDivElement | null>(null)
   const agentsScrollTopRef = React.useRef(0)
   // Held here so collapsed groups (and the layout the saved scrollTop assumes)
@@ -166,32 +170,43 @@ function Sidebar({
             <SidebarHeader
               onWorkspaceBoardMenuOpenChange={setWorkspaceBoardMenuOpen}
               activityOptionsTarget={setAgentOptionsTarget}
+              projectsCollapsed={projectsCollapsed}
+              projectsContentId={projectsContentId}
+              onToggleProjects={() => setProjectsCollapsed(!projectsCollapsed)}
             />
-            {sidebarBody === 'agents' ? (
-              <React.Suspense fallback={<div className="min-h-0 flex-1" />}>
-                <ActivityThreadCollapseContext.Provider value={agentsCollapseState}>
-                  <SidebarAgentsList
-                    readFilter={agentReadFilter}
-                    setReadFilter={setAgentReadFilter}
-                    groupBy={agentGroupBy}
-                    setGroupBy={setAgentGroupBy}
-                    query={agentQuery}
-                    setQuery={setAgentQuery}
-                    optionsTarget={agentOptionsTarget}
-                    scrollTopRef={agentsScrollTopRef}
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div
+                id={projectsContentId}
+                hidden={projectsCollapsed}
+                className={cn('min-h-0 flex-1 flex-col', projectsCollapsed ? 'hidden' : 'flex')}
+              >
+                {sidebarBody === 'agents' ? (
+                  <React.Suspense fallback={<div className="min-h-0 flex-1" />}>
+                    <ActivityThreadCollapseContext.Provider value={agentsCollapseState}>
+                      <SidebarAgentsList
+                        readFilter={agentReadFilter}
+                        setReadFilter={setAgentReadFilter}
+                        groupBy={agentGroupBy}
+                        setGroupBy={setAgentGroupBy}
+                        query={agentQuery}
+                        setQuery={setAgentQuery}
+                        optionsTarget={agentOptionsTarget}
+                        scrollTopRef={agentsScrollTopRef}
+                      />
+                    </ActivityThreadCollapseContext.Provider>
+                  </React.Suspense>
+                ) : (
+                  <WorktreeList
+                    scrollOffsetRef={worktreeScrollOffsetRef}
+                    scrollAnchorRef={worktreeScrollAnchorRef}
+                    workspaceBoardOpen={workspaceBoardOpen}
+                    onWorkspaceBoardDragPreviewStart={previewWorkspaceBoardFromDrag}
+                    onWorkspaceBoardDragPreviewCommit={solidifyWorkspaceBoardFromDrag}
+                    onWorkspaceBoardDragPreviewCancel={cancelWorkspaceBoardDragPreview}
                   />
-                </ActivityThreadCollapseContext.Provider>
-              </React.Suspense>
-            ) : (
-              <WorktreeList
-                scrollOffsetRef={worktreeScrollOffsetRef}
-                scrollAnchorRef={worktreeScrollAnchorRef}
-                workspaceBoardOpen={workspaceBoardOpen}
-                onWorkspaceBoardDragPreviewStart={previewWorkspaceBoardFromDrag}
-                onWorkspaceBoardDragPreviewCommit={solidifyWorkspaceBoardFromDrag}
-                onWorkspaceBoardDragPreviewCancel={cancelWorkspaceBoardDragPreview}
-              />
-            )}
+                )}
+              </div>
+            </div>
 
             <div className="relative shrink-0">
               <SetupScriptPromptCard />
