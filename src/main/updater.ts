@@ -1,3 +1,4 @@
+import { ORCA_FOCUS_BUILD } from '../shared/orca-focus-build'
 import type { BrowserWindow } from 'electron'
 import type {
   LinuxPackageInstallInstructions,
@@ -50,18 +51,30 @@ export function installRemoteServerUpdate(runtimeId: string): RemoteServerUpdate
 }
 
 export function checkForUpdates(): void {
+  if (ORCA_FOCUS_BUILD) {
+    return
+  }
   updater.checkForUpdates()
 }
 
 export function checkForUpdatesFromMenu(options?: UpdateCheckOptions): void {
+  if (ORCA_FOCUS_BUILD) {
+    return
+  }
   updater.checkForUpdatesFromMenu(options)
 }
 
 export function downloadUpdate(): void {
+  if (ORCA_FOCUS_BUILD) {
+    return
+  }
   updater.downloadUpdate()
 }
 
 export function quitAndInstall(): void {
+  if (ORCA_FOCUS_BUILD) {
+    return
+  }
   updater.quitAndInstall()
 }
 
@@ -78,6 +91,9 @@ export async function showLinuxPackage(): Promise<void> {
 }
 
 export async function listAvailableReleaseBuilds(channel: ReleaseChannel): Promise<ReleaseBuild[]> {
+  if (ORCA_FOCUS_BUILD) {
+    return []
+  }
   return updater.listAvailableReleaseBuilds(channel)
 }
 
@@ -90,5 +106,8 @@ export function dismissAvailableUpdate(): void {
 }
 
 export function setupAutoUpdater(mainWindow: BrowserWindow, opts?: UpdaterSetupOptions): void {
+  if (ORCA_FOCUS_BUILD) {
+    return
+  }
   updater.setupAutoUpdater(mainWindow, opts)
 }
