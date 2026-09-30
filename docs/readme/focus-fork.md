@@ -26,6 +26,11 @@ remain intact.
 | Bounded drag autoscroll | [#8](https://github.com/aleradev12/orca/issues/8) | [#17](https://github.com/aleradev12/orca/pull/17) |
 | Independent development profiles | [#18](https://github.com/aleradev12/orca/issues/18) | [#19](https://github.com/aleradev12/orca/pull/19) |
 
+Additional fixes: [#23](https://github.com/aleradev12/orca/pull/23) / issue #22
+uses a themed popover surface for rich Focus hints (content and arrow adapt live;
+default label tooltips remain unchanged). Issue #24 adds Focus's Mark Unread /
+Mark Read command, sharing the existing Projects metadata action.
+
 ## Visible behavior
 
 Focus list items show the custom label followed by **branch, group ancestry/project,
@@ -41,7 +46,9 @@ Paths truncate at the **start**, preserving their suffix. Full paths/group chain
 remain available through titles. Local Git refs display without `refs/heads/`.
 Group names participate in project-context search. Focus's amber unread marker
 uses `worktree.isUnread`, exactly as Projects' bell; it is not a terminal activity
-indicator.
+indicator. Focus's context menu now exposes **Mark Unread / Mark Read**, as
+Projects already does. The state persists and is shared across both panels;
+normal activation clears it. Unavailable/archived targets cannot be marked.
 
 Dragging uses a fixed overlay outside the scrollable list. The placeholder does
 not translate, preventing an expanding scrollHeight/autoscroll feedback loop.
@@ -64,12 +71,14 @@ The fork preserves upstream's source tooling. Use Node/pnpm versions specified b
 explicit `ORCA_DEV_USER_DATA_PATH` overrides only development userData. Do not
 point it at a working app's profile.
 
-Current validation: macOS arm64 web/node typechecks, **61 focused Vitest tests**,
+Current validation: macOS arm64 web/node typechecks, **67 focused Vitest tests**,
 signed local package and real Electron IPC/UI smoke. The smoke verifies nested
 group context, group-name search, two search context rows, three Focus context
 rows, visible suffix geometry on an actually overflowing path, view switching
 and restart persistence, pointer/keyboard reordering, cancellation and bounded
-scrollHeight while holding a drag at the bottom edge.
+scrollHeight while holding a drag at the bottom edge, live dark/light tooltip
+surface/arrow colors, and persisted manual read/unread commands from both menus.
+Host-qualified metadata calls and unavailable targets also have focused unit tests.
 
 The complete upstream test suite, physical Windows/Linux UI, real SSH latency and
 large-catalog performance have **not** been validated. Inherited GitHub workflows

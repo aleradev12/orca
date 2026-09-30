@@ -21,6 +21,7 @@ import { FocusPicker } from './FocusPicker'
 import type { FocusDocument, FocusPin } from './focus-state'
 import { useFocusStore } from './use-focus-store'
 import { FocusUnreadIndicator } from './FocusUnreadIndicator'
+import { FocusReadMenuItem } from './FocusReadMenuItem'
 import { WorkspaceContext } from '../WorkspaceContext'
 
 export function SortableFocusPin({
@@ -132,6 +133,11 @@ export function SortableFocusPin({
           }
         }}
       >
+        <FocusReadMenuItem
+          workspace={workspace}
+          executionHostId={getExecutionHostIdFromWorktreeHostIdentity(pin.identity) ?? 'local'}
+        />
+        <ContextMenuSeparator />
         <ContextMenuLabel>Edit Focus</ContextMenuLabel>
         <FocusPicker pin={pin} onSaved={() => setMenuOpen(false)} />
         <ContextMenuSeparator />
