@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { Grid2X2, List } from 'lucide-react'
 import {
   DndContext,
   PointerSensor,
@@ -15,8 +14,7 @@ import {
   sortableKeyboardCoordinates
 } from '@dnd-kit/sortable'
 import { SortableFocusPin } from './SortableFocusPin'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { FocusViewToggle } from './FocusViewToggle'
 import { useAppStore } from '@/store'
 import { useAllWorktrees } from '@/store/selectors'
 import { cn } from '@/lib/utils'
@@ -70,33 +68,7 @@ export function FocusPanel() {
           Focus
         </span>
         <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Focus display">
-          {(['grid', 'list'] as const).map((value) => (
-            <Tooltip key={value}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  disabled={!profileId}
-                  aria-label={value === 'grid' ? 'Compact grid' : 'Full list'}
-                  aria-pressed={mode === value}
-                  className={cn(
-                    'text-muted-foreground',
-                    mode === value && 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  )}
-                  onClick={() => setMode(value)}
-                >
-                  {value === 'grid' ? (
-                    <Grid2X2 className="size-3.5" />
-                  ) : (
-                    <List className="size-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {value === 'grid' ? 'Compact grid' : 'Full list'}
-              </TooltipContent>
-            </Tooltip>
-          ))}
+          <FocusViewToggle mode={mode} disabled={!profileId} onChange={setMode} />
         </div>
       </div>
       {error && (
