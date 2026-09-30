@@ -24,6 +24,7 @@ import {
 } from '@/lib/worktree-creation-structured-session'
 import { completeWorktreeCreation } from '@/lib/worktree-creation-completion'
 import { showWorktreeCreationReadyToast } from '@/lib/worktree-creation-ready-toast'
+import { mountCreatedWorktreeStartupTabsInBackground } from '@/lib/worktree-creation-background-mount'
 import { ensureWebRuntimeWorktreeTerminalAfterWake } from '@/lib/web-runtime-worktree-terminal-after-wake'
 
 // Why: activePendingCreationId can outlive the terminal route when the user
@@ -240,6 +241,11 @@ export async function executeWorktreeCreation(
         )
       } catch (error) {
         console.error('worktree create: initial terminal seeding failed', worktree.id, error)
+      }
+      try {
+        mountCreatedWorktreeStartupTabsInBackground(worktree.id)
+      } catch (error) {
+        console.error('worktree create: background terminal mount failed', worktree.id, error)
       }
     }
     if (!structuredLaunch && !backendSpawned) {
