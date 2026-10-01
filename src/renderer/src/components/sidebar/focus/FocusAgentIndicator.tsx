@@ -1,7 +1,7 @@
 import { CircleHelp, Eye, LoaderCircle } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
-import { useWorktreeActivityStatus } from '../use-worktree-activity-status'
+import { selectFocusTerminalActivityStatus } from './focus-terminal-activity'
 import { selectWorktreeAgentActivitySummary } from '../worktree-agent-activity-summary'
 import { getFocusAgentSignal } from './focus-agent-signal'
 
@@ -12,7 +12,7 @@ export function FocusAgentIndicator({
   worktreeId: string
   details?: boolean
 }) {
-  const status = useWorktreeActivityStatus(worktreeId)
+  const status = useAppStore((state) => selectFocusTerminalActivityStatus(state, worktreeId))
   const summary = useAppStore((state) => selectWorktreeAgentActivitySummary(state, worktreeId))
   const signal = getFocusAgentSignal(status, summary)
   if (!signal) {
