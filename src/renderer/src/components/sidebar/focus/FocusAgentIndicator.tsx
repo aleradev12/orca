@@ -27,7 +27,11 @@ export function FocusAgentIndicator({
       aria-label={signal.label}
       className={cn(
         'inline-flex shrink-0 items-center gap-1',
-        signal.kind === 'waiting' ? 'text-amber-500' : 'text-blue-500 dark:text-blue-400'
+        signal.kind === 'waiting'
+          ? 'text-amber-500'
+          : signal.kind === 'working'
+            ? 'text-foreground'
+            : 'text-blue-500 dark:text-blue-400'
       )}
     >
       <Icon
