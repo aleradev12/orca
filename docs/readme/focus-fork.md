@@ -66,7 +66,12 @@ Focus now shows three independent signals rather than overloading its unread dot
   on its own host. The rich tooltip lists sorted, unique port numbers. External
   and container/unattributed listeners are not mistaken for a branch server.
 
-These use native cached subscriptions, not new polling or agent launches. The
+Agent activity uses the **exact terminal-tab activity resolver** (live PTYs,
+runtime titles, layouts and hook states), aggregated over this workspace's tabs,
+plus the native explicit agent summary for attributed workers. A working tab
+wins over a permission request in another tab. It does not infer a working turn
+merely from an open Pi/Claude process. These use native cached subscriptions, not
+new polling or agent launches. The
 ports scanner's normal cadence is 30 seconds with advertised-URL refresh events;
 visibility and transient-failure behavior are inherited from Orca. Local and
 runtime-host scans remain separate. **Direct SSH without a runtime has no port
@@ -99,7 +104,7 @@ The fork preserves upstream's source tooling. Use Node/pnpm versions specified b
 explicit `ORCA_DEV_USER_DATA_PATH` overrides only development userData. Do not
 point it at a working app's profile.
 
-Current validation: macOS arm64 web/node typechecks, **80 focused Vitest tests**,
+Current validation: macOS arm64 web/node typechecks, **85 focused Vitest tests**,
 signed local package and real Electron IPC/UI smoke. The smoke verifies nested
 group context, group-name search, two search context rows, three Focus context
 rows, visible suffix geometry on an actually overflowing path, view switching
@@ -110,7 +115,10 @@ Host-qualified metadata calls and unavailable targets also have focused unit tes
 Native hook IPC fixtures cover working → waiting → done without launching agents;
 a real ephemeral loopback server in a disposable worktree verifies listener
 appearance/disappearance, three-badge geometry and numeric ports in the rich hint.
-Tests also cover host-separated scan keys, unknown/direct-SSH scopes and external
+The native tab glyph and Focus badge are asserted together; hookless live-title
+and dead-PTY regression cases exercise the actual shared resolver. Real-provider
+acceptance still requires observing a genuinely working agent, not merely the
+synthetic hook fixture. Tests also cover host-separated scan keys, unknown/direct-SSH scopes and external
 listeners. Public previews above predate these extra live badges.
 
 The complete upstream test suite, physical Windows/Linux UI, real SSH latency and
