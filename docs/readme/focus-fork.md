@@ -53,6 +53,31 @@ normal activation clears it. Unavailable/archived targets cannot be marked.
 Dragging uses a fixed overlay outside the scrollable list. The placeholder does
 not translate, preventing an expanding scrollHeight/autoscroll feedback loop.
 
+### Independent live signals
+
+Focus now shows three independent signals rather than overloading its unread dot:
+
+- **Amber dot**: the existing unread metadata.
+- **Blue spinner**: native agent work in the branch's panes; a needs-input icon
+  represents waiting, and an eye represents native monitoring. Open shells,
+  browser-only workspaces and completed agents do not get a work indicator.
+  Explicit working evidence remains visible when another agent is waiting.
+- **Plug**: the existing scanner has attributed listening ports to this workspace
+  on its own host. The rich tooltip lists sorted, unique port numbers. External
+  and container/unattributed listeners are not mistaken for a branch server.
+
+These use native cached subscriptions, not new polling or agent launches. The
+ports scanner's normal cadence is 30 seconds with advertised-URL refresh events;
+visibility and transient-failure behavior are inherited from Orca. Local and
+runtime-host scans remain separate. **Direct SSH without a runtime has no port
+scan in this client path**, so it does not fall back to the local host's ports.
+Unknown/unavailable scans do not invent a positive port indicator.
+
+Generic long-running commands have an on-demand close guard, but no continuous
+status feed; no additional busy polling was added for that lower-priority signal.
+Spinner animation respects reduced-motion preferences. All three badges can
+coexist without overlap, while normal activation clears only unread.
+
 ## Before / after
 
 These are actual Electron screenshots of disposable synthetic repositories under
@@ -71,7 +96,7 @@ The fork preserves upstream's source tooling. Use Node/pnpm versions specified b
 explicit `ORCA_DEV_USER_DATA_PATH` overrides only development userData. Do not
 point it at a working app's profile.
 
-Current validation: macOS arm64 web/node typechecks, **67 focused Vitest tests**,
+Current validation: macOS arm64 web/node typechecks, **80 focused Vitest tests**,
 signed local package and real Electron IPC/UI smoke. The smoke verifies nested
 group context, group-name search, two search context rows, three Focus context
 rows, visible suffix geometry on an actually overflowing path, view switching
@@ -79,6 +104,11 @@ and restart persistence, pointer/keyboard reordering, cancellation and bounded
 scrollHeight while holding a drag at the bottom edge, live dark/light tooltip
 surface/arrow colors, and persisted manual read/unread commands from both menus.
 Host-qualified metadata calls and unavailable targets also have focused unit tests.
+Native hook IPC fixtures cover working → waiting → done without launching agents;
+a real ephemeral loopback server in a disposable worktree verifies listener
+appearance/disappearance, three-badge geometry and numeric ports in the rich hint.
+Tests also cover host-separated scan keys, unknown/direct-SSH scopes and external
+listeners. Public previews above predate these extra live badges.
 
 The complete upstream test suite, physical Windows/Linux UI, real SSH latency and
 large-catalog performance have **not** been validated. Inherited GitHub workflows
