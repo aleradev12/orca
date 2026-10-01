@@ -58,7 +58,7 @@ not translate, preventing an expanding scrollHeight/autoscroll feedback loop.
 Focus now shows three independent signals rather than overloading its unread dot:
 
 - **Amber dot**: the existing unread metadata.
-- **Blue spinner**: native agent work in the branch's panes; a needs-input icon
+- **Theme-foreground spinner** (light on dark, dark on light): native agent work in the branch's panes; a needs-input icon
   represents waiting, and an eye represents native monitoring. Open shells,
   browser-only workspaces and completed agents do not get a work indicator.
   Explicit working evidence remains visible when another agent is waiting.
