@@ -23,6 +23,7 @@ import { useFocusStore } from './use-focus-store'
 import { FocusUnreadIndicator } from './FocusUnreadIndicator'
 import { FocusReadMenuItem } from './FocusReadMenuItem'
 import { FocusAgentIndicator } from './FocusAgentIndicator'
+import { FocusPortsIndicator } from './FocusPortsIndicator'
 import { WorkspaceContext } from '../WorkspaceContext'
 
 export function SortableFocusPin({
@@ -108,6 +109,12 @@ export function SortableFocusPin({
                   )}
                 >
                   <FocusAgentIndicator worktreeId={workspace.id} />
+                  <FocusPortsIndicator
+                    worktreeId={workspace.id}
+                    executionHostId={
+                      getExecutionHostIdFromWorktreeHostIdentity(pin.identity) ?? 'local'
+                    }
+                  />
                   <FocusUnreadIndicator isUnread={workspace.isUnread} />
                 </span>
               )}
@@ -123,7 +130,18 @@ export function SortableFocusPin({
             showBranch
             showTitles={false}
           />
-          {available && workspace && <FocusAgentIndicator worktreeId={workspace.id} details />}
+          {available && workspace && (
+            <div className="mt-1 flex flex-col gap-1">
+              <FocusAgentIndicator worktreeId={workspace.id} details />
+              <FocusPortsIndicator
+                worktreeId={workspace.id}
+                executionHostId={
+                  getExecutionHostIdFromWorktreeHostIdentity(pin.identity) ?? 'local'
+                }
+                details
+              />
+            </div>
+          )}
           {workspace?.isUnread && <div>Unread</div>}
           {!available && <div>Workspace unavailable · right-click to edit or Unfocus</div>}
         </TooltipContent>
