@@ -75,8 +75,11 @@ Unknown/unavailable scans do not invent a positive port indicator.
 
 Generic long-running commands have an on-demand close guard, but no continuous
 status feed; no additional busy polling was added for that lower-priority signal.
-Spinner animation respects reduced-motion preferences. All three badges can
-coexist without overlap, while normal activation clears only unread.
+Spinner animation respects reduced-motion preferences. Each signal owns an
+independent corner layer: unread **top-right**, ports **bottom-left**, agent
+activity **bottom-right**, in grid and list. None occupies another's slot. All
+three badges can coexist without overlap, while normal activation clears only
+unread.
 
 ## Before / after
 
