@@ -102,21 +102,31 @@ export function SortableFocusPin({
                 </span>
               )}
               {available && workspace && (
-                <span
-                  className={cn(
-                    'pointer-events-none absolute right-1 inline-flex items-center gap-1',
-                    mode === 'grid' ? 'bottom-1' : 'top-2'
-                  )}
-                >
-                  <FocusAgentIndicator worktreeId={workspace.id} />
-                  <FocusPortsIndicator
-                    worktreeId={workspace.id}
-                    executionHostId={
-                      getExecutionHostIdFromWorktreeHostIdentity(pin.identity) ?? 'local'
-                    }
-                  />
-                  <FocusUnreadIndicator isUnread={workspace.isUnread} />
-                </span>
+                <>
+                  <span
+                    data-focus-signal-layer="agent"
+                    className="pointer-events-none absolute bottom-1 right-1 inline-flex"
+                  >
+                    <FocusAgentIndicator worktreeId={workspace.id} />
+                  </span>
+                  <span
+                    data-focus-signal-layer="ports"
+                    className="pointer-events-none absolute bottom-1 left-1 inline-flex"
+                  >
+                    <FocusPortsIndicator
+                      worktreeId={workspace.id}
+                      executionHostId={
+                        getExecutionHostIdFromWorktreeHostIdentity(pin.identity) ?? 'local'
+                      }
+                    />
+                  </span>
+                  <span
+                    data-focus-signal-layer="unread"
+                    className="pointer-events-none absolute top-1 right-1 inline-flex"
+                  >
+                    <FocusUnreadIndicator isUnread={workspace.isUnread} />
+                  </span>
+                </>
               )}
             </button>
           </TooltipTrigger>
