@@ -22,6 +22,7 @@ import type { FocusDocument, FocusPin } from './focus-state'
 import { useFocusStore } from './use-focus-store'
 import { FocusUnreadIndicator } from './FocusUnreadIndicator'
 import { FocusReadMenuItem } from './FocusReadMenuItem'
+import { FocusAgentIndicator } from './FocusAgentIndicator'
 import { WorkspaceContext } from '../WorkspaceContext'
 
 export function SortableFocusPin({
@@ -87,7 +88,7 @@ export function SortableFocusPin({
                 {pin.emoji}
               </span>
               {mode === 'list' && (
-                <span className="flex min-w-0 flex-1 flex-col pr-3">
+                <span className="flex min-w-0 flex-1 flex-col pr-10">
                   <span className="truncate leading-4">{label}</span>
                   <WorkspaceContext
                     workspace={workspace}
@@ -102,10 +103,11 @@ export function SortableFocusPin({
               {available && workspace && (
                 <span
                   className={cn(
-                    'pointer-events-none absolute right-1',
+                    'pointer-events-none absolute right-1 inline-flex items-center gap-1',
                     mode === 'grid' ? 'bottom-1' : 'top-2'
                   )}
                 >
+                  <FocusAgentIndicator worktreeId={workspace.id} />
                   <FocusUnreadIndicator isUnread={workspace.isUnread} />
                 </span>
               )}
@@ -121,6 +123,7 @@ export function SortableFocusPin({
             showBranch
             showTitles={false}
           />
+          {available && workspace && <FocusAgentIndicator worktreeId={workspace.id} details />}
           {workspace?.isUnread && <div>Unread</div>}
           {!available && <div>Workspace unavailable · right-click to edit or Unfocus</div>}
         </TooltipContent>
