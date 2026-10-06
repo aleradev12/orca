@@ -14,17 +14,17 @@ remain intact.
 - Use conventional commit subjects, plain-language PR summaries, concrete test
   results and explicit platform/remote/security limitations.
 
-| Change | Issue | Merged PR |
-| --- | --- | --- |
-| Distribution identity/profile/CLI/update isolation | [#1](https://github.com/aleradev12/orca/issues/1) | [#10](https://github.com/aleradev12/orca/pull/10) |
-| Native Focus shortcuts, ordering and unread indicator | [#2](https://github.com/aleradev12/orca/issues/2) | [#11](https://github.com/aleradev12/orca/pull/11) |
-| Projects collapse | [#3](https://github.com/aleradev12/orca/issues/3) | [#12](https://github.com/aleradev12/orca/pull/12) |
-| Globally ranked Projects search | [#4](https://github.com/aleradev12/orca/issues/4) | [#13](https://github.com/aleradev12/orca/pull/13) |
-| Disposable E2E Keychain diagnostic | [#5](https://github.com/aleradev12/orca/issues/5) | [#14](https://github.com/aleradev12/orca/pull/14) |
-| Shared workspace ancestry/path context | [#6](https://github.com/aleradev12/orca/issues/6) | [#15](https://github.com/aleradev12/orca/pull/15) |
-| One Focus view switch | [#7](https://github.com/aleradev12/orca/issues/7) | [#16](https://github.com/aleradev12/orca/pull/16) |
-| Bounded drag autoscroll | [#8](https://github.com/aleradev12/orca/issues/8) | [#17](https://github.com/aleradev12/orca/pull/17) |
-| Independent development profiles | [#18](https://github.com/aleradev12/orca/issues/18) | [#19](https://github.com/aleradev12/orca/pull/19) |
+| Change                                                | Issue                                               | Merged PR                                         |
+| ----------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------- |
+| Distribution identity/profile/CLI/update isolation    | [#1](https://github.com/aleradev12/orca/issues/1)   | [#10](https://github.com/aleradev12/orca/pull/10) |
+| Native Focus shortcuts, ordering and unread indicator | [#2](https://github.com/aleradev12/orca/issues/2)   | [#11](https://github.com/aleradev12/orca/pull/11) |
+| Projects collapse                                     | [#3](https://github.com/aleradev12/orca/issues/3)   | [#12](https://github.com/aleradev12/orca/pull/12) |
+| Globally ranked Projects search                       | [#4](https://github.com/aleradev12/orca/issues/4)   | [#13](https://github.com/aleradev12/orca/pull/13) |
+| Disposable E2E Keychain diagnostic                    | [#5](https://github.com/aleradev12/orca/issues/5)   | [#14](https://github.com/aleradev12/orca/pull/14) |
+| Shared workspace ancestry/path context                | [#6](https://github.com/aleradev12/orca/issues/6)   | [#15](https://github.com/aleradev12/orca/pull/15) |
+| One Focus view switch                                 | [#7](https://github.com/aleradev12/orca/issues/7)   | [#16](https://github.com/aleradev12/orca/pull/16) |
+| Bounded drag autoscroll                               | [#8](https://github.com/aleradev12/orca/issues/8)   | [#17](https://github.com/aleradev12/orca/pull/17) |
+| Independent development profiles                      | [#18](https://github.com/aleradev12/orca/issues/18) | [#19](https://github.com/aleradev12/orca/pull/19) |
 
 Additional fixes: [#23](https://github.com/aleradev12/orca/pull/23) / issue #22
 uses a themed popover surface for rich Focus hints (content and arrow adapt live;
@@ -86,15 +86,32 @@ activity **bottom-right**, in grid and list. None occupies another's slot. All
 three badges can coexist without overlap, while normal activation clears only
 unread.
 
+## Terminal and agent session restoration
+
+Focus uses upstream's managed agent hook installation policy, including the
+`agentStatusHooksEnabled` preference and disabled-agent controls. Hooks supply
+provider conversation identities; keeping terminal tabs alone is not enough to
+resume a conversation after a cold restart. Early Focus configuration snapshots
+forced this preference off. Existing affected profiles need **Agent status hooks**
+enabled in Settings; updating the executable does not override a saved opt-out.
+
+Normal application quits retain the terminal daemon for warm reattachment.
+After a machine restart or daemon loss, supported CLI agents resume through the
+existing upstream provider-session records. No new history importer, shared app
+profile, transcript inference, or alternative resume mechanism is added. Missing
+provider identity cannot be repaired by recreating the tab. This change does not
+promise restoration of arbitrary processes or conversations that were never
+captured, and it does not change SSH/runtime execution ownership.
+
 ## Before / after
 
 These are actual Electron screenshots of disposable synthetic repositories under
 `/private/tmp`, not user profiles, private histories or renderer-store mockups.
 
-| Focus | Projects search |
-| --- | --- |
-| Before: ![Previous Focus](../assets/focus-fork/before-focus.png) | Before: ![Previous search result](../assets/focus-fork/before-search.png) |
-| After: ![Focus context and one view switch](../assets/focus-fork/after-focus.png) | After: ![Two-line search context](../assets/focus-fork/after-search.png) |
+| Focus                                                                             | Projects search                                                           |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Before: ![Previous Focus](../assets/focus-fork/before-focus.png)                  | Before: ![Previous search result](../assets/focus-fork/before-search.png) |
+| After: ![Focus context and one view switch](../assets/focus-fork/after-focus.png) | After: ![Two-line search context](../assets/focus-fork/after-search.png)  |
 
 ## Development and validation
 
