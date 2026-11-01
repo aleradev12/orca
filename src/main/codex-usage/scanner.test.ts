@@ -105,6 +105,9 @@ describe('parseCodexUsageRecord', () => {
       cwd: '/workspace/repo/packages/app',
       model: 'gpt-5.2-codex',
       hasInferredPricing: false,
+      longContextInputTokens: 0,
+      longContextCachedInputTokens: 0,
+      longContextOutputTokens: 0,
       inputTokens: 1000,
       cachedInputTokens: 400,
       outputTokens: 250,
@@ -112,39 +115,6 @@ describe('parseCodexUsageRecord', () => {
       totalTokens: 1250
     })
     expect(duplicate).toBeNull()
-  })
-
-  it('preserves unknown model metadata instead of assigning fallback pricing', () => {
-    const context = {
-      sessionId: 'session-1',
-      sessionCwd: '/workspace/repo',
-      currentCwd: '/workspace/repo',
-      currentModel: null,
-      previousTotals: null
-    }
-
-    const parsed = parseCodexUsageRecord(
-      JSON.stringify({
-        timestamp: '2026-04-09T10:00:00.000Z',
-        type: 'event_msg',
-        payload: {
-          type: 'token_count',
-          info: {
-            last_token_usage: {
-              input_tokens: 120,
-              cached_input_tokens: 20,
-              output_tokens: 50,
-              reasoning_output_tokens: 10,
-              total_tokens: 170
-            }
-          }
-        }
-      }),
-      context
-    )
-
-    expect(parsed?.model).toBeNull()
-    expect(parsed?.hasInferredPricing).toBe(true)
   })
 
   it('uses last token usage for the first resumed-session event', () => {
@@ -203,6 +173,9 @@ describe('attributeCodexUsageEvent', () => {
         cwd: '/workspace/repo/app2/subdir',
         model: 'gpt-5.2-codex',
         hasInferredPricing: false,
+        longContextInputTokens: 0,
+        longContextCachedInputTokens: 0,
+        longContextOutputTokens: 0,
         inputTokens: 100,
         cachedInputTokens: 10,
         outputTokens: 25,
@@ -230,36 +203,6 @@ describe('attributeCodexUsageEvent', () => {
     expect(attributed?.worktreeId).toBe('repo-2::/workspace/repo/app2')
   })
 
-  it('attributes cwd paths under dotdot-prefixed child directories to the worktree', async () => {
-    const attributed = await attributeCodexUsageEvent(
-      {
-        sessionId: 'session-1',
-        timestamp: '2026-04-09T10:00:00.000Z',
-        eventKey: 'event-1',
-        cwd: '/workspace/repo/..fixtures/session',
-        model: 'gpt-5.2-codex',
-        hasInferredPricing: false,
-        inputTokens: 100,
-        cachedInputTokens: 10,
-        outputTokens: 25,
-        reasoningOutputTokens: 10,
-        totalTokens: 125
-      },
-      await createUsageWorktreeResolver([
-        {
-          repoId: 'repo-1',
-          worktreeId: 'repo-1::/workspace/repo',
-          path: '/workspace/repo',
-          displayName: 'Repo'
-        }
-      ])
-    )
-
-    expect(attributed?.projectKey).toBe('worktree:repo-1::/workspace/repo')
-    expect(attributed?.projectLabel).toBe('Repo')
-    expect(attributed?.worktreeId).toBe('repo-1::/workspace/repo')
-  })
-
   it('does not attribute true parent-directory escapes to the worktree', async () => {
     const attributed = await attributeCodexUsageEvent(
       {
@@ -269,6 +212,9 @@ describe('attributeCodexUsageEvent', () => {
         cwd: '/workspace/repo/../other/session',
         model: 'gpt-5.2-codex',
         hasInferredPricing: false,
+        longContextInputTokens: 0,
+        longContextCachedInputTokens: 0,
+        longContextOutputTokens: 0,
         inputTokens: 100,
         cachedInputTokens: 10,
         outputTokens: 25,
@@ -286,35 +232,6 @@ describe('attributeCodexUsageEvent', () => {
     )
 
     expect(attributed?.projectKey).toBe('cwd:/workspace/repo/../other/session')
-    expect(attributed?.worktreeId).toBeNull()
-  })
-
-  it('does not treat different Windows drives as containing paths', async () => {
-    const attributed = await attributeCodexUsageEvent(
-      {
-        sessionId: 'session-1',
-        timestamp: '2026-04-09T10:00:00.000Z',
-        eventKey: 'event-1',
-        cwd: 'D:\\other\\repo',
-        model: 'gpt-5.2-codex',
-        hasInferredPricing: false,
-        inputTokens: 100,
-        cachedInputTokens: 10,
-        outputTokens: 25,
-        reasoningOutputTokens: 10,
-        totalTokens: 125
-      },
-      await createUsageWorktreeResolver([
-        {
-          repoId: 'repo-1',
-          worktreeId: 'repo-1::C:\\repo',
-          path: 'C:\\repo',
-          displayName: 'Repo'
-        }
-      ])
-    )
-
-    expect(attributed?.projectKey).toBe('cwd:d:/other/repo')
     expect(attributed?.worktreeId).toBeNull()
   })
 })

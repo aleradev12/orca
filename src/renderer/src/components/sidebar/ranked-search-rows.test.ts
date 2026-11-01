@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { HostSectionRow } from './host-section-rows'
+import type { HostSectionRow } from '../../../../shared/sidebar-list/host-section-rows'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { rankProjectsSearchRows } from './ranked-search-rows'
 
@@ -17,7 +17,7 @@ describe('globally ranked Projects search rows', () => {
         depth: 2,
         groupDepth: 2,
         lineageChildCount: 2,
-        lineageTrail: [true]
+        isLastLineageChild: true
       }) as HostSectionRow
     const rows = [
       { type: 'header', key: 'pinned', count: 1 },
@@ -26,6 +26,7 @@ describe('globally ranked Projects search rows', () => {
       item(path, 'a'),
       { type: 'header', key: 'project-b', count: 1 },
       item(branch, 'b'),
+      item({ id: 'unmatched', hostId: 'local' } as Worktree, 'b'),
       { type: 'header', key: 'empty', count: 0, repo: { id: 'empty' } },
       { type: 'folder-workspace', key: 'folder' },
       { type: 'host-header', key: 'host' },
@@ -47,11 +48,43 @@ describe('globally ranked Projects search rows', () => {
     expect(result[0]).toMatchObject({
       depth: 0,
       lineageChildCount: 0,
-      lineageTrail: [],
       searchProjectLabel: 'branch project'
     })
     expect(result[1]).toMatchObject({ searchProjectLabel: 'path project' })
     expect(rows[1]).not.toHaveProperty('searchProjectLabel')
     expect(rows[1]).toMatchObject({ depth: 2, lineageChildCount: 2 })
+  })
+
+  it('deduplicates pinned occurrences without merging the same workspace on different hosts', () => {
+    const item = (hostId: string, rowKey: string): HostSectionRow => ({
+      type: 'item',
+      worktree: { id: 'same', hostId } as Worktree,
+      rowKey,
+      sectionKey: 'project',
+      repo: undefined,
+      depth: 0,
+      groupDepth: 0,
+      lineageChildCount: 0,
+      isLastLineageChild: true
+    })
+    const local = item('local', 'local-row')
+    const pinned = item('local', 'pinned-local-row')
+    const remote = item('runtime:remote', 'remote-row')
+    if (local.type !== 'item' || pinned.type !== 'item' || remote.type !== 'item') {
+      throw new Error('Expected workspace rows')
+    }
+    const result = rankProjectsSearchRows(
+      [local, pinned, remote],
+      new Map([
+        [local.worktree, 2],
+        [pinned.worktree, 2],
+        [remote.worktree, 1]
+      ]),
+      new Map()
+    )
+    expect(result.map((row) => row.type === 'item' && row.rowKey)).toEqual([
+      'remote-row',
+      'local-row'
+    ])
   })
 })

@@ -15,6 +15,7 @@ export const SETTING_LABELS: Partial<Record<keyof GlobalSettings, string>> = {
   terminalCursorBlink: 'Cursor Blink',
   terminalCursorOpacity: 'Cursor Opacity',
   terminalMouseHideWhileTyping: 'Mouse Hide While Typing',
+  terminalInlineImages: 'Inline Images',
   terminalWordSeparator: 'Word Separator',
   primarySelectionMiddleClickPaste: 'Middle-click Paste from Selection',
   terminalFocusFollowsMouse: 'Focus Follows Mouse',
@@ -25,5 +26,5 @@ export const SETTING_LABELS: Partial<Record<keyof GlobalSettings, string>> = {
   terminalDividerColorDark: 'Divider Color (Dark)',
   terminalDividerColorLight: 'Divider Color (Light)',
   terminalInactivePaneOpacity: 'Inactive Pane Opacity',
-  windowBackgroundBlur: 'Window Background Blur'
+  windowMaterial: 'Window Material'
 }

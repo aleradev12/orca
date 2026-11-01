@@ -41,15 +41,7 @@ import {
   terminalQuickCommandsSchema,
   workspaceFilePathsSchema
 } from './session-read-reply-schema'
-import {
-  sessionCreatedTerminalTabSchema,
-  terminalSendAcceptedSchema
-} from './session-write-reply-schema'
-
-// One suite per claim the session schemas make. The three kinds of case here are the three kinds of
-// decision the schemas encode: a member a consumer reads unguarded is required, an arm set a reader
-// compares against degrades rather than refusing, and a reply whose arms need different members is
-// declared as variants.
+import { sessionCreatedTerminalTabSchema } from './session-write-reply-schema'
 
 function reads<T>(schema: z.ZodType<T, unknown>, value: unknown): T {
   const parsed = schema.safeParse(value)
@@ -98,7 +90,6 @@ describe('required members', () => {
     expect(created.terminal).toBe('terminal-9')
     expect(refuses(sessionCreatedTerminalTabSchema, {})).toBe(true)
     expect(refuses(sessionCreatedTerminalTabSchema, { tab: { ...tab, id: '' } })).toBe(true)
-    // A create that answered some other tab kind would be spread into the strip as a terminal.
     expect(refuses(sessionCreatedTerminalTabSchema, { tab: { ...tab, type: 'markdown' } })).toBe(
       true
     )
@@ -110,7 +101,6 @@ describe('required members', () => {
     expect(created.terminal).toBeNull()
     expect(created.title).toBeUndefined()
     expect(created.status).toBe('pending-handle')
-    // Main guarded each of these, so an unreadable one drops to the guard rather than refusing.
     const salvaged = reads(sessionCreatedTerminalTabSchema, {
       tab: { ...tab, title: 7, terminal: 3 }
     })
@@ -156,7 +146,7 @@ describe('required members', () => {
         { path: 'c.ts' }
       ]
     })
-    expect(compare.entries.map((entry) => entry.path)).toEqual(['a.ts'])
+    expect(compare.entries?.map((entry) => entry.path)).toEqual(['a.ts'])
   })
 
   it('requires the three members a markdown tab publishes into its ready state', () => {
@@ -284,9 +274,7 @@ describe('degrading arm sets', () => {
     expect(reads(hostedReviewForBranchSchema, null)).toBeNull()
   })
 
-  // Why these three degrade on a NON-STRING too: `openEnum` is `z.enum(...).or(z.string()...)`,
-  // so it refuses a number where main mapped it to the conservative arm. Swapping these to
-  // `openEnum(..., fallback).optional()` keeps every other test green and flips exactly these.
+  // Non-string enum values must also degrade; plain openEnum would reject them instead of selecting the conservative arm.
   it('degrades a non-string check status to pending rather than refusing the review', () => {
     const review = { provider: 'github', number: 7 }
     expect(reads(hostedReviewForBranchSchema, { ...review, status: 3 })?.status).toBe('pending')
@@ -321,9 +309,7 @@ describe('degrading arm sets', () => {
   })
 })
 
-// The other half of the same decision: where main DROPPED the row or block rather than mapping it
-// to an arm, the arm set stays closed and required. Defaulting these would invent a status the host
-// never sent, so the row leaving is the honest answer.
+// Keep arms closed where unreadable rows were historically dropped; fallback would invent host state.
 describe('closed arm sets drop rather than default', () => {
   it('drops a check row whose status is an arm the icon cannot draw', () => {
     const rows = reads(prChecksSchema, [
@@ -342,7 +328,7 @@ describe('closed arm sets drop rather than default', () => {
         { path: 'b.ts', status: 'teleported' }
       ]
     })
-    expect(projection.entries.map((entry) => entry.path)).toEqual(['a.ts'])
+    expect(projection.entries?.map((entry) => entry.path)).toEqual(['a.ts'])
   })
 
   it('refuses a diff whose kind names no arm the screen can render', () => {
@@ -379,9 +365,7 @@ describe('closed arm sets drop rather than default', () => {
   })
 })
 
-// A third answer, distinct from both: `null` on these two flags is GitHub saying it knows the
-// answer and the answer is no, where `undefined` is the host not carrying the member. Coalescing
-// the null away would read a well-formed reply differently from main, which preserved it.
+// Preserve null as explicit no; undefined means the host omitted the flag.
 describe('tri-state flags keep an explicit null', () => {
   const review = { provider: 'github', number: 7 }
   const pr = { number: 7, state: 'open' }
@@ -402,7 +386,7 @@ describe('tri-state flags keep an explicit null', () => {
   it('keeps a null autoMergeAllowed and mergeQueueRequired on the PR and drops a non-boolean', () => {
     const readsPr = (value: unknown) => {
       const found = reads(githubPrForBranchSchema, { kind: 'found', pr: value })
-      return found.kind === 'found' ? found.pr : null
+      return found?.kind === 'found' ? found.pr : null
     }
     const nulled = readsPr({ ...pr, autoMergeAllowed: null, mergeQueueRequired: null })
     expect(nulled?.autoMergeAllowed).toBeNull()
@@ -489,10 +473,7 @@ describe('declared variants', () => {
     expect(refuses(githubPrRepoSlugSchema, { owner: 'o' })).toBe(true)
   })
 
-  it('reads a terminal send as delivered unless the runtime said otherwise', () => {
-    expect(reads(terminalSendAcceptedSchema, { send: { accepted: true } })).toBe(true)
-    expect(reads(terminalSendAcceptedSchema, { send: { accepted: false } })).toBe(false)
-    expect(reads(terminalSendAcceptedSchema, {})).toBe(false)
+  it('reads a review terminal send as delivered unless the runtime said otherwise', () => {
     expect(reads(reviewTerminalSendAcceptedSchema, { send: { accepted: false } })).toBe(false)
     expect(reads(reviewTerminalSendAcceptedSchema, {})).toBe(true)
     expect(refuses(reviewTerminalSendAcceptedSchema, null)).toBe(true)

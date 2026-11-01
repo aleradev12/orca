@@ -19,6 +19,8 @@ import { FocusViewToggle } from './FocusViewToggle'
 import { WorkspaceContext } from '../WorkspaceContext'
 import { useAppStore } from '@/store'
 import { useAllWorktrees } from '@/store/selectors'
+import { selectFolderWorkspaces } from '@/store/workspace-record-selectors'
+import type { Worktree } from '../../../../../shared/worktree/types'
 import { cn } from '@/lib/utils'
 import { folderWorkspaceToWorktree } from '../../../../../shared/folder-workspace-worktree'
 import { getRepoExecutionHostId } from '../../../../../shared/execution-host'
@@ -28,7 +30,7 @@ import { useFocusStore } from './use-focus-store'
 export function FocusPanel() {
   const profileId = useAppStore((state) => state.activeOrcaProfileId)
   const worktrees = useAllWorktrees()
-  const folders = useAppStore((state) => state.folderWorkspaces)
+  const folders = useAppStore(selectFolderWorkspaces)
   const repos = useAppStore((state) => state.repos)
   const activeId = useAppStore((state) => state.activeWorktreeId)
   const activeHost = useAppStore((state) => state.activeWorkspaceExecutionHostId)
@@ -49,7 +51,7 @@ export function FocusPanel() {
   )
   const catalog = useMemo(() => {
     const repoHosts = new Map(repos.map((repo) => [repo.id, getRepoExecutionHostId(repo)]))
-    return new Map(
+    return new Map<string, Worktree>(
       [...worktrees, ...folders.map(folderWorkspaceToWorktree)].map((worktree) => [
         composeWorktreeHostIdentity(
           worktree.hostId ?? repoHosts.get(worktree.repoId) ?? 'local',

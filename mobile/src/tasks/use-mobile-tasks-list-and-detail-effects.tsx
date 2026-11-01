@@ -1,3 +1,4 @@
+import { translate } from '../i18n/mobile-i18n'
 import type { ProjectLoadingActionsModel } from './use-mobile-tasks-project-loading-actions'
 import {
   View,
@@ -6,12 +7,7 @@ import {
   useCallback,
   useEffect
 } from './mobile-tasks-dependencies'
-import {
-  type LinearState,
-  type LinearTeam,
-  getTaskPresetQuery,
-  scopeGitHubTaskSearch
-} from './mobile-tasks-legacy-foundation'
+import { getTaskPresetQuery, scopeGitHubTaskSearch } from './mobile-tasks-legacy-foundation'
 import {
   linearComposerTeamListRead,
   linearTeamStateListRead
@@ -33,6 +29,8 @@ export function useMobileTasksListAndDetailEffects(model: ProjectLoadingActionsM
     hostedRepos,
     linearConnected,
     linearFilter,
+    jiraFilter,
+    refreshJiraConnection,
     linearMetadataItem,
     loadGitHubProjectTable,
     loadGitHubProjects,
@@ -63,6 +61,7 @@ export function useMobileTasksListAndDetailEffects(model: ProjectLoadingActionsM
     setItemTitleDraft,
     setLinearCommentDraft,
     setLinearStates,
+    setLinearStatesError,
     setLinearStatesLoading,
     setLinearSubIssueTitle,
     setLinearTeams,
@@ -123,6 +122,32 @@ export function useMobileTasksListAndDetailEffects(model: ProjectLoadingActionsM
       linearQuery: appliedQuery.trim()
     })
   }, [appliedQuery, linearFilter, persistTaskResumeState, provider, taskUiReady])
+
+  useEffect(() => {
+    if (!taskUiReady || provider !== 'jira') {
+      return
+    }
+    persistTaskResumeState({
+      jiraPreset: jiraFilter,
+      jiraQuery: appliedQuery.trim()
+    })
+  }, [appliedQuery, jiraFilter, persistTaskResumeState, provider, taskUiReady])
+
+  // Pick up desktop connection changes when entering the Jira tab.
+  useEffect(() => {
+    if (!taskStateHydrated || provider !== 'jira') {
+      return
+    }
+    let stale = false
+    void refreshJiraConnection().catch((err) => {
+      if (!stale) {
+        setError(err instanceof Error ? err.message : 'Failed to read Jira status')
+      }
+    })
+    return () => {
+      stale = true
+    }
+  }, [provider, refreshJiraConnection, taskStateHydrated])
 
   useEffect(() => {
     if (connState !== 'connected' || !taskStateHydrated) {
@@ -202,8 +227,7 @@ export function useMobileTasksListAndDetailEffects(model: ProjectLoadingActionsM
         }
         const accepted = linearComposerTeamListRead.interpret(response)
         if (accepted.accepted) {
-          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Preserve the established response shape at this boundary.
-          const teams = accepted.value as LinearTeam[]
+          const teams = accepted.value
           setLinearTeams(teams)
           setCreateTeamId((current) => current ?? teams[0]?.id ?? null)
         } else {
@@ -231,6 +255,7 @@ export function useMobileTasksListAndDetailEffects(model: ProjectLoadingActionsM
     }
     let stale = false
     setLinearStatesLoading(true)
+    setLinearStatesError('')
     setLinearCommentDraft('')
     setLinearSubIssueTitle('')
     const baseParams = {
@@ -244,12 +269,15 @@ export function useMobileTasksListAndDetailEffects(model: ProjectLoadingActionsM
           return
         }
         const accepted = linearTeamStateListRead.interpret(statesResponse)
-        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Preserve the established response shape at this boundary.
-        setLinearStates(accepted.accepted ? (accepted.value as LinearState[]) : [])
+        setLinearStates(accepted.accepted ? accepted.value : [])
+        if (!accepted.accepted) {
+          setLinearStatesError(statesLoadFailed())
+        }
       })
       .catch(() => {
         if (!stale) {
           setLinearStates([])
+          setLinearStatesError(statesLoadFailed())
         }
       })
       .finally(() => {
@@ -299,3 +327,8 @@ export function useMobileTasksListAndDetailEffects(model: ProjectLoadingActionsM
 }
 
 export type ListAndDetailEffectsModel = ReturnType<typeof useMobileTasksListAndDetailEffects>
+
+// A failed read must not read as a team with no states.
+function statesLoadFailed(): string {
+  return translate('tasks.filterPickers.statesFailed', "Couldn't load states. Reopen to try again.")
+}

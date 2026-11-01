@@ -1,13 +1,18 @@
 // @vitest-environment happy-dom
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { searchResults } from '../../../../shared/ai-vault-search-test-fixture'
-import { getExecutionHostLabel } from '../../../../shared/execution-host'
+
 import { AiVaultPanelSearch } from './AiVaultPanelSearch'
 import type { useAiVaultPanelSearch } from './use-ai-vault-search'
 
-vi.mock('@/store', () => ({ useAppStore: { getState: () => ({}) } }))
+const store = vi.hoisted(() => ({
+  settings: null,
+  markFeatureTipsSeen: vi.fn(),
+  updateSettingsOrThrow: vi.fn(async () => {})
+}))
+
+vi.mock('@/store', () => ({ useAppStore: { getState: () => store } }))
 
 afterEach(cleanup)
 
@@ -26,7 +31,9 @@ function panelSearch(overrides: Partial<PanelSearch> = {}): PanelSearch {
     sessions: [],
     searchHits: new Map(),
     searching: true,
-    localConsent: false,
+    hasQuery: true,
+    needsLocalConsent: false,
+    titleOnly: false,
     host: null,
     resetKey: 'all',
     ...overrides
@@ -35,58 +42,23 @@ function panelSearch(overrides: Partial<PanelSearch> = {}): PanelSearch {
 
 function renderPanel(search: PanelSearch) {
   return render(
-    <AiVaultPanelSearch search={search} noAgents={false} onDismiss={vi.fn()}>
+    <AiVaultPanelSearch search={search} noAgents={false}>
       <div>results</div>
     </AiVaultPanelSearch>
   )
 }
 
 describe('AiVaultPanelSearch', () => {
-  it('names every computer the merge could not search, with its reason', () => {
-    const response = searchResults()
-    renderPanel(
-      panelSearch({
-        hits: response.hits,
-        response: {
-          ...response,
-          hosts: [
-            { executionHostId: 'local', outcome: 'disabled' },
-            { executionHostId: 'ssh:build-box', outcome: 'unreachable' },
-            { executionHostId: 'runtime:cloud', outcome: 'searched' },
-            { executionHostId: 'runtime:paused', outcome: 'not-ready' },
-            { executionHostId: 'ssh:moved', outcome: 'stale' },
-            { executionHostId: 'ssh:old', outcome: 'no-service' }
-          ]
-        }
-      })
-    )
-
-    expect(screen.getByRole('status').textContent).toBe(
-      `Not searched: ${getExecutionHostLabel('local')} (search off) · build-box (unreachable) · paused (not ready) · moved (index changed) · old (unavailable)`
-    )
-  })
-
-  it('stays silent when every computer answered', () => {
-    const response = searchResults()
-    renderPanel(
-      panelSearch({
-        hits: response.hits,
-        response: {
-          ...response,
-          hosts: [{ executionHostId: 'local', outcome: 'searched' }]
-        }
-      })
-    )
-
-    expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.getByText('results')).toBeTruthy()
-  })
-
-  it('no longer asks the user to choose one computer before searching', () => {
-    renderPanel(panelSearch({ host: null }))
-
-    expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.queryByText(/choose one computer/i)).toBeNull()
-    expect(screen.getByText('results')).toBeTruthy()
+  it('retires the session search tip when the user turns search on here', async () => {
+    const search = panelSearch({ needsLocalConsent: true })
+    renderPanel(search)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Enable' }))
+    })
+    expect(store.markFeatureTipsSeen).toHaveBeenCalledWith(['agent-session-search'])
+    expect(store.updateSettingsOrThrow).toHaveBeenCalledWith({
+      aiVaultSearch: { enabled: true, historyDays: null }
+    })
+    expect(search.retry).toHaveBeenCalled()
   })
 })

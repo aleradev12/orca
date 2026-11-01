@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_LAUNCH_RUNTIME_CAPABILITY } from '../../../src/shared/protocol-version'
+import {
+  AGENT_LAUNCH_REPLAY_REQUIRED_RUNTIME_CAPABILITY,
+  AGENT_LAUNCH_REPLAY_RUNTIME_CAPABILITY,
+  AGENT_LAUNCH_RUNTIME_CAPABILITY
+} from '../../../src/shared/agent-launch-runtime-capability'
 import type { RpcClient } from '../transport/rpc-client'
 import { LogicalClientCutoverError } from '../transport/stable-logical-rpc-client'
 import { readNewWorktreeRuntimeCapabilities } from './worktree-create-capability'
-import {
-  WORKTREE_CREATE_DEDUPE_TTL_CLIENT_CEILING_MS,
-  WORKTREE_CREATE_DEDUPE_TTL_LEGACY_HOST_MS
-} from './worktree-create-idempotency-policy'
+import { createFakeRpcClient } from '../mobile-web-shell/bridge-host-test-fakes'
 
 type StatusOutcome =
   | 'cutover'
@@ -20,6 +21,7 @@ type StatusOutcome =
 function statusClient(outcomes: StatusOutcome[]): RpcClient {
   let call = 0
   return {
+    ...createFakeRpcClient(),
     sendRequest: async () => {
       const outcome = outcomes[Math.min(call, outcomes.length - 1)]!
       call += 1
@@ -39,7 +41,7 @@ function statusClient(outcomes: StatusOutcome[]): RpcClient {
         _meta: { runtimeId: 'r' }
       }
     }
-  } as unknown as RpcClient
+  }
 }
 
 describe('readNewWorktreeRuntimeCapabilities', () => {
@@ -54,6 +56,8 @@ describe('readNewWorktreeRuntimeCapabilities', () => {
         ])
       )
     ).resolves.toEqual({
+      branchIntentV2: false,
+      branchIntentV2Request: false,
       tasksSupported: true,
       worktreeCreateIdempotency: { dedupeTtlMs: 20_000 },
       agentLaunch: false,
@@ -62,26 +66,73 @@ describe('readNewWorktreeRuntimeCapabilities', () => {
   })
 
   it('reads agent.launch support from the same status.get probe', async () => {
-    // Why: mobile must not send `agent.launch` to a host that never advertised it, and one probe
-    // has to answer that alongside create idempotency so a create cannot straddle two answers.
+    // Resolve launch and create-idempotency support in one probe so creation cannot straddle inconsistent answers.
     await expect(
       readNewWorktreeRuntimeCapabilities(
         statusClient([{ capabilities: [AGENT_LAUNCH_RUNTIME_CAPABILITY] }])
       )
     ).resolves.toEqual({
+      branchIntentV2: false,
+      branchIntentV2Request: false,
       tasksSupported: false,
       worktreeCreateIdempotency: false,
-      agentLaunch: true,
+      // Method support does not imply ledger support; older hosts may silently strip operationId.
+      agentLaunch: { replay: false },
       hostPlatform: 'darwin'
     })
+  })
+
+  it('reads launch replay support only when the host advertises the ledger', async () => {
+    await expect(
+      readNewWorktreeRuntimeCapabilities(
+        statusClient([
+          {
+            capabilities: [
+              AGENT_LAUNCH_RUNTIME_CAPABILITY,
+              AGENT_LAUNCH_REPLAY_REQUIRED_RUNTIME_CAPABILITY
+            ]
+          }
+        ])
+      )
+    ).resolves.toEqual({
+      branchIntentV2: false,
+      branchIntentV2Request: false,
+      tasksSupported: false,
+      worktreeCreateIdempotency: false,
+      agentLaunch: { replay: true },
+      hostPlatform: 'darwin'
+    })
+  })
+
+  // Ledger capability alone cannot enable a missing launch method.
+  it('ignores the replay capability on a host without agent.launch', async () => {
+    await expect(
+      readNewWorktreeRuntimeCapabilities(
+        statusClient([{ capabilities: [AGENT_LAUNCH_REPLAY_REQUIRED_RUNTIME_CAPABILITY] }])
+      )
+    ).resolves.toMatchObject({ agentLaunch: false })
+  })
+
+  it('does not authorize replay from the optional-identity capability alone', async () => {
+    await expect(
+      readNewWorktreeRuntimeCapabilities(
+        statusClient([
+          {
+            capabilities: [AGENT_LAUNCH_RUNTIME_CAPABILITY, AGENT_LAUNCH_REPLAY_RUNTIME_CAPABILITY]
+          }
+        ])
+      )
+    ).resolves.toMatchObject({ agentLaunch: { replay: false } })
   })
 
   it('uses the bounded fallback for an old idempotent host without an advertisement', async () => {
     await expect(
       readNewWorktreeRuntimeCapabilities(statusClient([['worktree.create-idempotency.v1']]))
     ).resolves.toEqual({
+      branchIntentV2: false,
+      branchIntentV2Request: false,
       tasksSupported: false,
-      worktreeCreateIdempotency: { dedupeTtlMs: WORKTREE_CREATE_DEDUPE_TTL_CLIENT_CEILING_MS },
+      worktreeCreateIdempotency: { dedupeTtlMs: 60_000 },
       agentLaunch: false,
       hostPlatform: 'darwin'
     })
@@ -98,6 +149,8 @@ describe('readNewWorktreeRuntimeCapabilities', () => {
         ])
       )
     ).resolves.toEqual({
+      branchIntentV2: false,
+      branchIntentV2Request: false,
       tasksSupported: false,
       worktreeCreateIdempotency: { dedupeTtlMs: 0 },
       agentLaunch: false,
@@ -123,6 +176,8 @@ describe('readNewWorktreeRuntimeCapabilities', () => {
           ])
         )
       ).resolves.toEqual({
+        branchIntentV2: false,
+        branchIntentV2Request: false,
         tasksSupported: false,
         worktreeCreateIdempotency: { dedupeTtlMs: 0 },
         agentLaunch: false,
@@ -142,8 +197,10 @@ describe('readNewWorktreeRuntimeCapabilities', () => {
         ])
       )
     ).resolves.toEqual({
+      branchIntentV2: false,
+      branchIntentV2Request: false,
       tasksSupported: false,
-      worktreeCreateIdempotency: { dedupeTtlMs: WORKTREE_CREATE_DEDUPE_TTL_LEGACY_HOST_MS },
+      worktreeCreateIdempotency: { dedupeTtlMs: 60_000 },
       agentLaunch: false,
       hostPlatform: 'darwin'
     })
@@ -162,6 +219,8 @@ describe('readNewWorktreeRuntimeCapabilities', () => {
           ])
         )
       ).resolves.toEqual({
+        branchIntentV2: false,
+        branchIntentV2Request: false,
         tasksSupported: false,
         worktreeCreateIdempotency: { dedupeTtlMs: 0 },
         agentLaunch: false,
@@ -182,6 +241,8 @@ describe('readNewWorktreeRuntimeCapabilities', () => {
         ])
       )
     ).resolves.toEqual({
+      branchIntentV2: false,
+      branchIntentV2Request: false,
       tasksSupported: false,
       worktreeCreateIdempotency: { dedupeTtlMs: 30_000 },
       agentLaunch: false,
@@ -190,11 +251,6 @@ describe('readNewWorktreeRuntimeCapabilities', () => {
   })
 
   it('fails closed when capability detection is unavailable', async () => {
-    await expect(readNewWorktreeRuntimeCapabilities(statusClient(['error']))).resolves.toEqual({
-      tasksSupported: false,
-      worktreeCreateIdempotency: false,
-      agentLaunch: false,
-      hostPlatform: null
-    })
+    await expect(readNewWorktreeRuntimeCapabilities(statusClient(['error']))).resolves.toBeNull()
   })
 })

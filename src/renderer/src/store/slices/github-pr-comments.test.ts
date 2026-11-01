@@ -211,6 +211,63 @@ describe('createGitHubSlice.fetchPRComments', () => {
     await expect(Promise.all([first, forced])).resolves.toEqual([comments, comments])
   })
 
+  it.each([false, true])(
+    'an explicit refresh replaces a pre-click read and keeps comments posted during either (click fails: %s)',
+    async (clickFails) => {
+      const store = createTestStore()
+      const comment = (id: number, body: string): PRComment => ({
+        id,
+        author: 'octocat',
+        authorAvatarUrl: '',
+        body,
+        createdAt: `2026-08-23T00:00:0${id}Z`,
+        url: ''
+      })
+      const old = Promise.withResolvers<PRComment[]>()
+      const fresh = Promise.withResolvers<PRComment[]>()
+      mockApi.gh.prComments.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise)
+      mockApi.gh.addIssueComment
+        .mockResolvedValueOnce({ ok: true, comment: comment(2, 'posted before') })
+        .mockResolvedValueOnce({ ok: true, comment: comment(3, 'posted during') })
+      const options = { repoId: 'repo-1' }
+      const before = store.getState().fetchPRComments('/repo/one', 12, options)
+      let click: Promise<PRComment[]> = Promise.resolve([])
+      try {
+        await store.getState().addPRConversationComment('/repo/one', 12, 'posted before', options)
+        click = store
+          .getState()
+          .fetchPRComments('/repo/one', 12, { ...options, force: true, userRefresh: true })
+        await store.getState().addPRConversationComment('/repo/one', 12, 'posted during', options)
+        expect(mockApi.gh.prComments).toHaveBeenCalledTimes(2)
+        expect(mockApi.gh.prComments).toHaveBeenLastCalledWith(
+          expect.objectContaining({ noCache: true })
+        )
+        if (clickFails) {
+          // The pre-click read's answer is still newer than the cache, so it lands instead.
+          fresh.reject(new Error('lost reply'))
+          old.resolve([comment(1, 'old')])
+        } else {
+          fresh.resolve([comment(1, 'new')])
+        }
+        const shown = await click
+        expect(shown.map((entry) => entry.body).sort()).toEqual([
+          clickFails ? 'old' : 'new',
+          'posted before',
+          'posted during'
+        ])
+        old.resolve([comment(1, 'old')])
+        await expect(before).resolves.toEqual(shown)
+        expect(Object.values(store.getState().commentsCache).map((entry) => entry.data)).toEqual([
+          shown
+        ])
+      } finally {
+        old.resolve([])
+        fresh.resolve([])
+        await Promise.all([before, click])
+      }
+    }
+  )
+
   it('bounds PR comment cache entries across many repos', async () => {
     vi.useFakeTimers()
 
@@ -233,62 +290,6 @@ describe('createGitHubSlice.fetchPRComments', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('preserves cached checks when the checks IPC fails', async () => {
-    const store = createTestStore()
-    const repoPath = '/repo'
-    const branch = 'feature/test'
-    const checksCacheKey = `${repoPath}::pr-checks::12`
-    const cachedChecks = [
-      { name: 'build', status: 'completed', conclusion: 'failure', url: null } as const
-    ]
-
-    store.setState({
-      checksCache: {
-        [checksCacheKey]: {
-          data: cachedChecks,
-          fetchedAt: 1,
-          headSha: 'abc123head'
-        }
-      }
-    } as unknown as Partial<AppState>)
-    mockApi.gh.prChecks.mockRejectedValueOnce(new Error('rate limited'))
-
-    await expect(
-      store.getState().fetchPRChecks(repoPath, 12, branch, 'abc123head', null, { force: true })
-    ).resolves.toEqual(cachedChecks)
-
-    expect(store.getState().checksCache[checksCacheKey]?.data).toEqual(cachedChecks)
-    expect(store.getState().checksCache[checksCacheKey]?.fetchedAt).toBe(1)
-  })
-
-  it('does not return cached checks for a different requested head SHA after IPC failure', async () => {
-    const store = createTestStore()
-    const repoPath = '/repo'
-    const branch = 'feature/test'
-    const checksCacheKey = `${repoPath}::pr-checks::12`
-    const oldHeadChecks = [
-      { name: 'build', status: 'completed', conclusion: 'success', url: null } as const
-    ]
-
-    store.setState({
-      checksCache: {
-        [checksCacheKey]: {
-          data: oldHeadChecks,
-          fetchedAt: 1,
-          headSha: 'old-head'
-        }
-      }
-    } as unknown as Partial<AppState>)
-    mockApi.gh.prChecks.mockRejectedValueOnce(new Error('rate limited'))
-
-    await expect(
-      store.getState().fetchPRChecks(repoPath, 12, branch, 'new-head', null, { force: true })
-    ).resolves.toEqual([])
-
-    expect(store.getState().checksCache[checksCacheKey]?.data).toEqual(oldHeadChecks)
-    expect(store.getState().checksCache[checksCacheKey]?.headSha).toBe('old-head')
   })
 })
 

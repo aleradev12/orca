@@ -1,7 +1,10 @@
+import {
+  AGENT_JOURNAL_THREAD_SCOPE,
+  type AgentJournalItemBody
+} from '../../shared/agent-session/journal/agent-session-journal-types'
 import { describe, expect, it } from 'vitest'
-import { agentJournalItemKey } from '../../shared/agent-session-journal-item-key'
-import type { AgentJournalItemBody } from '../../shared/agent-session-journal-types'
-import { projectStructuredItemsToNativeChat } from '../../shared/structured-agent-session-projection'
+import { agentJournalItemKey } from '../../shared/agent-session/journal/agent-session-journal-item-key'
+import { projectStructuredItemsToNativeChat } from '../../shared/agent-session/view/structured-agent-session-projection'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
 import {
   createCodexJournalTranslator,
@@ -82,7 +85,7 @@ describe('compaction provider generation compatibility', () => {
       if (stage === 'append' && reject) {
         return { accepted: false, reason: 'backpressure' }
       }
-      sink.appendItem(identity, body)
+      sink.appendItem(identity, body, { turnScope: AGENT_JOURNAL_THREAD_SCOPE })
       return { accepted: true }
     }
     sink.tryPublish = () => {

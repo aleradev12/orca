@@ -33,12 +33,16 @@ export function getWorkspaceContext({
   while (current && !visited.has(current)) {
     visited.add(current)
     const group = byId.get(current)
-    if (!group) break
+    if (!group) {
+      break
+    }
     ancestry.unshift(group.name)
     current = group.parentGroupId ?? undefined
   }
-  const project = repo?.displayName || repo?.path.split(/[\\/]/).filter(Boolean).at(-1)
-  if (project && ancestry.at(-1) !== project) ancestry.push(project)
+  const project = repo?.displayName || repo?.path.split(/[\\/]/).findLast(Boolean)
+  if (project && ancestry.at(-1) !== project) {
+    ancestry.push(project)
+  }
   return {
     branch: (workspace?.branch || fallbackBranch || workspace?.displayName || '').replace(
       /^refs\/heads\//,

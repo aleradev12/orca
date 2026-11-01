@@ -1,5 +1,9 @@
-import type { AgentJournalTurnLifecycle } from '../../shared/agent-session-journal-types'
-import { agentJournalSubmissionKey } from '../../shared/agent-session-journal-item-key'
+import type { AgentJournalTurnLifecycle } from '../../shared/agent-session/journal/agent-session-journal-types'
+import type { AgentJournalTurnOutcome } from '../../shared/agent-turn-outcome'
+import {
+  agentJournalItemKey,
+  agentJournalSubmissionKey
+} from '../../shared/agent-session/journal/agent-session-journal-item-key'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
 import {
   CODEX_JOURNAL_ADMITTED,
@@ -9,11 +13,17 @@ import type { CodexJournalItems } from './codex-structured-journal-items'
 import { settleCodexJournalTurn } from './codex-structured-journal-settlement'
 import {
   CodexJournalRecentTurns,
-  type CodexJournalActiveTurns
+  earlierRequestOrigin,
+  type CodexJournalActiveTurns,
+  type CodexJournalRequestOrigin
 } from './codex-structured-journal-translation-turn-state'
-import type { CodexDispatchRequestOrigin } from './codex-structured-dispatch-echo'
+import type {
+  CodexDispatchEchoes,
+  CodexDispatchRequestOrigin
+} from './codex-structured-dispatch-echo'
 import {
   codexTurnLifecycleState,
+  codexTurnOutcome,
   codexTurnUserItemId,
   publishCodexTurnLifecycle
 } from './codex-structured-journal-translation-turns'
@@ -23,6 +33,10 @@ import {
   readCodexTurnId,
   readCodexTurnStatus
 } from './codex-structured-thread-facts'
+import type { CodexRowAttribution } from './codex-subagent-linkage'
+import type { CodexJournalCommandTurn } from './codex-journal-command-turn'
+import { readRecord, readString } from './codex-item-field-readers'
+import { recordCodexCommandTurnClaim } from './codex-command-turn-claim'
 
 type TurnBoundaryEvent = {
   sessionId: string
@@ -32,7 +46,14 @@ type TurnBoundaryEvent = {
   dispatchSequenceAtReceipt?: number
 }
 
-/** Opens and settles the durable lifecycle row for each primary-thread turn. */
+type TurnTerminal = {
+  state: 'completed' | 'interrupted'
+  completedAt: number
+  /** Absent or null when the provider supplied no verdict. */
+  outcome?: AgentJournalTurnOutcome | null
+  durationMs?: number | null
+}
+
 export class CodexJournalTurnBoundaries {
   private readonly recentTurns = new CodexJournalRecentTurns()
 
@@ -46,6 +67,9 @@ export class CodexJournalTurnBoundaries {
       clearPromptTurn?: (threadId: string, turnId: string) => void
       flushSuppression: () => CodexJournalTranslationAdmission
       resetActivity: (threadId: string) => void
+      attributionFor: CodexRowAttribution
+      commands: CodexJournalCommandTurn
+      turnOpener?: CodexDispatchEchoes['turnOpener']
       now?: () => number
     }
   ) {}
@@ -55,19 +79,25 @@ export class CodexJournalTurnBoundaries {
     if (!turnId) {
       return CODEX_JOURNAL_ADMITTED
     }
-    if (!this.deps.activeTurns.canRemember(event.threadId, turnId)) {
-      return { accepted: false, reason: 'backpressure' }
-    }
     const startedAt = this.receiptTime(event)
-    const admission = publishCodexTurnLifecycle({
-      sink: this.deps.sink,
-      primaryThreadId: this.deps.primaryThreadId(),
-      sessionId: event.sessionId,
-      threadId: event.threadId,
-      turnId,
-      state: 'running',
-      startedAt
-    })
+    const command =
+      event.threadId === this.deps.primaryThreadId() ? this.deps.commands.claim(turnId) : null
+    const opener = command
+      ? null
+      : this.replyOpener(event.threadId, turnId, event.dispatchSequenceAtReceipt)
+    // Command-owned turns reuse the command's row and scope.
+    const admission = command
+      ? recordCodexCommandTurnClaim(this.deps.sink, agentJournalItemKey(command.identity), turnId)
+      : publishCodexTurnLifecycle({
+          sink: this.deps.sink,
+          primaryThreadId: this.deps.primaryThreadId(),
+          sessionId: event.sessionId,
+          threadId: event.threadId,
+          turnId,
+          state: 'running',
+          startedAt,
+          ...(opener ? { userItemId: opener.userItemId, requestedAt: opener.requestedAt } : {})
+        })
     if (admission.accepted) {
       this.deps.activeTurns.remember(
         event.threadId,
@@ -75,6 +105,9 @@ export class CodexJournalTurnBoundaries {
         startedAt,
         event.dispatchSequenceAtReceipt
       )
+      if (opener) {
+        this.deps.activeTurns.rememberRequestOrigin(event.threadId, turnId, opener)
+      }
       this.deps.resetActivity(event.threadId)
     }
     return admission
@@ -126,6 +159,7 @@ export class CodexJournalTurnBoundaries {
     return admission
   }
 
+  /** Only turn/completed ends a live turn, including failures preceded by an error frame. */
   complete(event: TurnBoundaryEvent): CodexJournalTranslationAdmission {
     const suppressionAdmission = this.deps.flushSuppression()
     if (!suppressionAdmission.accepted) {
@@ -135,21 +169,31 @@ export class CodexJournalTurnBoundaries {
     if (!turnId) {
       return CODEX_JOURNAL_ADMITTED
     }
-    // The roster is deliberately NOT swept here. `spawn_agent` children outlive
-    // the turn that spawned them and go on reporting into the same group, so a
-    // turn boundary is no evidence contact was lost. Only `settleSession` may
-    // write `unverifiable`.
+    const status = readCodexTurnStatus(event.params)
+    const completedAt = this.receiptTime(event)
+    const commandEnd = this.deps.commands.end(turnId, {
+      status,
+      error: readString(readRecord(readRecord(readRecord(event.params).turn).error), 'message'),
+      completedAt
+    })
+    // Stop settles an unstarted send; do not invent a turn record without observed work.
+    const ranNothing =
+      status === 'interrupted' &&
+      !this.deps.activeTurns.has(event.threadId, turnId) &&
+      !this.deps.items.ordinals.hasItems(event.threadId, turnId) &&
+      ![...this.deps.pendingPrompts.values()].some(
+        (prompt) => prompt.threadId === event.threadId && prompt.turnId === turnId
+      )
     const turnLifecycle =
-      event.threadId === this.deps.primaryThreadId()
-        ? this.settled(
-            event.threadId,
-            turnId,
-            codexTurnLifecycleState(readCodexTurnStatus(event.params)),
-            this.receiptTime(event),
-            readCodexTurnDurationMs(event.params)
-          )
+      this.ownsRecord(event.threadId, turnId) && !ranNothing
+        ? this.settled(event.threadId, turnId, {
+            state: codexTurnLifecycleState(status),
+            outcome: codexTurnOutcome(status),
+            completedAt,
+            durationMs: readCodexTurnDurationMs(event.params)
+          })
         : null
-    const requestOrigin = this.deps.activeTurns.requestOrigin(event.threadId, turnId)
+    const requestOrigin = this.requestOrigin(event.threadId, turnId)
     const latestDispatchSequence = this.deps.activeTurns.latestDispatchSequence(
       event.threadId,
       turnId
@@ -160,10 +204,14 @@ export class CodexJournalTurnBoundaries {
       threadId: event.threadId,
       turnId,
       turnLifecycle,
+      completedAt,
+      turnEnd: codexTurnLifecycleState(status),
       streams: this.deps.items.streams,
       activeItems: this.deps.items.activeItems,
       pendingPrompts: this.deps.pendingPrompts,
-      ...(this.deps.clearPromptTurn ? { clearPromptTurn: this.deps.clearPromptTurn } : {})
+      ...(this.deps.clearPromptTurn ? { clearPromptTurn: this.deps.clearPromptTurn } : {}),
+      attributionFor: this.deps.attributionFor,
+      commandEnd
     })
     if (admission.accepted) {
       if (turnLifecycle) {
@@ -176,36 +224,59 @@ export class CodexJournalTurnBoundaries {
       }
       this.deps.items.ordinals.forgetTurn(event.threadId, turnId)
       this.deps.activeTurns.forget(event.threadId, turnId)
+      this.deps.commands.settled(turnId)
       this.deps.resetActivity(event.threadId)
     }
     return admission
   }
 
-  /** Terminal lifecycle for a remembered turn; `startedAt` is absent when the start was never seen. */
-  settled(
-    threadId: string,
-    turnId: string,
-    state: 'completed' | 'interrupted',
-    completedAt: number,
-    durationMs: number | null = null
-  ): AgentJournalTurnLifecycle {
+  /** Keep terminal state and outcome together when revising the remembered turn. */
+  settled(threadId: string, turnId: string, terminal: TurnTerminal): AgentJournalTurnLifecycle {
     const startedAt = this.deps.activeTurns.startedAt(threadId, turnId)
-    // Carried forward from the exact echoed send that was attributed to this turn.
-    const requestOrigin = this.deps.activeTurns.requestOrigin(threadId, turnId)
+    const requestOrigin = this.requestOrigin(threadId, turnId)
     return {
       turnId,
-      state,
+      state: terminal.state,
+      ...(terminal.outcome ? { outcome: terminal.outcome } : {}),
       userItemId: requestOrigin?.userItemId ?? codexTurnUserItemId(threadId, turnId),
       ...(startedAt !== undefined ? { startedAt } : {}),
       ...(requestOrigin !== undefined ? { requestedAt: requestOrigin.requestedAt } : {}),
-      completedAt,
-      ...(durationMs !== null ? { durationMs } : {})
+      completedAt: terminal.completedAt,
+      ...(terminal.durationMs != null ? { durationMs: terminal.durationMs } : {})
     }
+  }
+
+  ownsRecord(threadId: string, turnId: string): boolean {
+    return threadId === this.deps.primaryThreadId() && !this.deps.commands.isCarrying(turnId)
   }
 
   clear(): void {
     this.deps.activeTurns.clear()
     this.recentTurns.clear()
+    this.deps.commands.clear()
+  }
+
+  /** The earlier of the echoed and the replied opener; a reply read after turn/started counts too. */
+  private requestOrigin(threadId: string, turnId: string): CodexJournalRequestOrigin | undefined {
+    const echoed = this.deps.activeTurns.requestOrigin(threadId, turnId)
+    const latestDispatchSequence = this.deps.activeTurns.latestDispatchSequence(threadId, turnId)
+    const replied =
+      latestDispatchSequence === undefined
+        ? null
+        : this.replyOpener(threadId, turnId, latestDispatchSequence)
+    return replied && earlierRequestOrigin(replied, echoed) ? replied : echoed
+  }
+
+  /** Codex never echoes a prompt its hook refused, so the turn/start reply names the opener. */
+  private replyOpener(
+    threadId: string,
+    turnId: string,
+    latestDispatchSequence = Number.MAX_SAFE_INTEGER
+  ): CodexJournalRequestOrigin | null {
+    const opener = this.deps.turnOpener?.(threadId, turnId)
+    return opener && opener.requestOrigin.sequence <= latestDispatchSequence
+      ? { ...opener.requestOrigin, userItemId: agentJournalSubmissionKey(opener.clientMessageId) }
+      : null
   }
 
   private receiptTime(event: TurnBoundaryEvent): number {
