@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tool
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
 describe('tooltip surface variant', () => {
-  for (const variant of ['label', 'surface'] as const) {
+  for (const variant of ['default', 'surface'] as const) {
     it(`keeps content and arrow on the same ${variant} tokens`, async () => {
       const element = document.createElement('div')
       document.body.append(element)

@@ -1,5 +1,8 @@
 import { settingsRead } from '../transport/settings-read-operations'
 import type { ClientSettingsActionsModel } from './use-mobile-tasks-client-settings-actions'
+import { jiraConnectionStatusProbe } from './mobile-jira-operations'
+import { readJiraConnectionProbeReply } from './jira-mobile-connection'
+import { resolveHydratedTaskViewState } from './mobile-tasks-hydrated-view-state'
 import {
   taskLinearStatusRead,
   taskPreflightRead,
@@ -10,24 +13,16 @@ import {
   MOBILE_TASKS_CAPABILITY,
   type PersistedTrustedOrcaHooks,
   filterAvailableTaskProviders,
-  isHostedTaskRepo,
   normalizeVisibleTaskProviders,
-  reconcileRepoSelection,
   resolveVisibleTaskProvider,
   useEffect
 } from './mobile-tasks-dependencies'
+import { useState } from 'react'
+import { translate } from '../i18n/mobile-i18n'
 import {
   EMPTY_GITHUB_PROJECT_SETTINGS,
-  type LinearStatusResponse,
   type RuntimeTaskSettings,
-  type TaskResumeState,
-  type TaskRuntimeStatus,
-  getTaskPresetQuery,
-  githubKindFromQuery,
-  isTaskProvider,
-  normalizeGitHubPreset,
-  normalizeLinearFilter,
-  scopeGitHubTaskSearch
+  type TaskResumeState
 } from './mobile-tasks-legacy-foundation'
 
 export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel) {
@@ -35,11 +30,7 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
     client,
     connState,
     defaultLinearTeamSelectionRef,
-    defaultRepoSelectionRef,
     provider,
-    repoList,
-    repoSelectionHydratedRef,
-    repos,
     requestedTaskSource,
     resetGitHubItemsState,
     resetWorkspaceCreateState,
@@ -56,6 +47,9 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
     setGithubProjectTable,
     setItems,
     setLinearConnected,
+    setJiraConnection,
+    jiraStatusRequestIdRef,
+    setJiraFilter,
     setLinearFilter,
     setLinearStatusPickerItem,
     setLinearTeams,
@@ -75,7 +69,6 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
     setRuntimeTaskSettings,
     setSelectedLinearTeamIds,
     setSelectedLinearWorkspaceId,
-    setSelectedRepoIds,
     setShowCreateTargetPicker,
     setShowCreateTask,
     setShowGitHubIssueSourcePicker,
@@ -84,21 +77,17 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
     setShowGitHubPresetPicker,
     setShowGitHubProjectFieldsPicker,
     setShowGitHubProjectPicker,
-    setShowGitHubProjectSortPicker,
     setShowGitHubProjectViewPicker,
     setShowGitLabFilterPicker,
     setShowGitLabViewPicker,
     setShowLinearConnect,
     setShowLinearDisplayPicker,
     setShowLinearFilterPicker,
-    setShowLinearGroupPicker,
-    setShowLinearOrderPicker,
     setShowLinearTeamPicker,
-    setShowLinearViewPicker,
     setShowLinearWorkspacePicker,
-    setShowProviderPicker,
     setShowRepoPicker,
-    setShowSortPicker,
+    setSelectedRepoIds,
+    setShowFilterSheet,
     setTaskStateHydrated,
     setTasksSupportState,
     setTrustedOrcaHooks,
@@ -106,11 +95,11 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
     taskResumeRef,
     visibleProviders
   } = model
+  // Bumped by Retry after a failed hydration, which leaves support unknown.
+  const [hydrationAttempt, setHydrationAttempt] = useState(0)
   useEffect(() => {
     if (!client || connState !== 'connected') {
       taskResumeRef.current = {}
-      defaultRepoSelectionRef.current = null
-      repoSelectionHydratedRef.current = false
       setRuntimeTaskSettings({})
       setTrustedOrcaHooks({})
       setOrcaYamlTrustPrompt(null)
@@ -119,24 +108,19 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
       setTasksSupportState({ kind: 'unknown', client: null })
       setShowLinearWorkspacePicker(false)
       setShowLinearTeamPicker(false)
-      setShowLinearViewPicker(false)
-      setShowLinearGroupPicker(false)
-      setShowLinearOrderPicker(false)
       setShowLinearDisplayPicker(false)
       setShowLinearConnect(false)
-      setShowProviderPicker(false)
       setShowGitHubKindPicker(false)
       setShowGitHubPresetPicker(false)
       setShowGitLabViewPicker(false)
       setShowGitLabFilterPicker(false)
       setShowLinearFilterPicker(false)
-      setShowSortPicker(false)
+      setShowFilterSheet(false)
       setShowRepoPicker(false)
       setShowGitHubIssueSourcePicker(false)
       setShowGitHubPagePicker(false)
       setShowGitHubProjectPicker(false)
       setShowGitHubProjectViewPicker(false)
-      setShowGitHubProjectSortPicker(false)
       setShowGitHubProjectFieldsPicker(false)
       setPendingGitHubProjectViewSelection(null)
       setActionItem(null)
@@ -161,24 +145,19 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
     setTasksSupportState({ kind: 'unknown', client })
     setShowLinearWorkspacePicker(false)
     setShowLinearTeamPicker(false)
-    setShowLinearViewPicker(false)
-    setShowLinearGroupPicker(false)
-    setShowLinearOrderPicker(false)
     setShowLinearDisplayPicker(false)
     setShowLinearConnect(false)
-    setShowProviderPicker(false)
     setShowGitHubKindPicker(false)
     setShowGitHubPresetPicker(false)
     setShowGitLabViewPicker(false)
     setShowGitLabFilterPicker(false)
     setShowLinearFilterPicker(false)
-    setShowSortPicker(false)
+    setShowFilterSheet(false)
     setShowRepoPicker(false)
     setShowGitHubIssueSourcePicker(false)
     setShowGitHubPagePicker(false)
     setShowGitHubProjectPicker(false)
     setShowGitHubProjectViewPicker(false)
-    setShowGitHubProjectSortPicker(false)
     setShowGitHubProjectFieldsPicker(false)
     setPendingGitHubProjectViewSelection(null)
     setActionItem(null)
@@ -201,37 +180,29 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
       if (stale) {
         return
       }
-      // The guard stays between the request and the interpretation: a screen that has moved on
-      // must not raise a refusal it no longer owns.
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Preserve the established response shape at this boundary.
-      const status = taskRuntimeStatusRead.interpret(statusReply) as TaskRuntimeStatus
+      // Fence before interpretation so stale screens cannot raise refusals they no longer own.
+      const status = taskRuntimeStatusRead.interpret(statusReply)
       if (!status.capabilities?.includes(MOBILE_TASKS_CAPABILITY)) {
-        // Why: Tasks is additive RPC surface, so old desktop builds can still
-        // pair but must not receive the newer task-specific method calls.
+        // Older hosts can pair without Tasks support; never send them task-specific methods.
         setTasksSupportState({ kind: 'unsupported', client })
         setItems([])
         resetGitHubItemsState()
         setGithubProjectTable(null)
         setShowLinearWorkspacePicker(false)
         setShowLinearTeamPicker(false)
-        setShowLinearViewPicker(false)
-        setShowLinearGroupPicker(false)
-        setShowLinearOrderPicker(false)
         setShowLinearDisplayPicker(false)
         setShowLinearConnect(false)
-        setShowProviderPicker(false)
         setShowGitHubKindPicker(false)
         setShowGitHubPresetPicker(false)
         setShowGitLabViewPicker(false)
         setShowGitLabFilterPicker(false)
         setShowLinearFilterPicker(false)
-        setShowSortPicker(false)
+        setShowFilterSheet(false)
         setShowRepoPicker(false)
         setShowGitHubIssueSourcePicker(false)
         setShowGitHubPagePicker(false)
         setShowGitHubProjectPicker(false)
         setShowGitHubProjectViewPicker(false)
-        setShowGitHubProjectSortPicker(false)
         setShowGitHubProjectFieldsPicker(false)
         setPendingGitHubProjectViewSelection(null)
         setActionItem(null)
@@ -248,15 +219,22 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
         setMergeMethodTaskItem(null)
         setMergeMethodProjectRow(null)
         resetWorkspaceCreateState()
-        setError('Update Orca desktop to use Tasks on mobile.')
         setTaskStateHydrated(false)
         return
       }
       setTasksSupportState({ kind: 'supported', client })
       setError('')
-      // Why raw requests in the group and not startRpcOperation: main's Promise.all rejects as soon
-      // as one leg rejects, and interpreting at an all-settled barrier would instead wait for the
-      // slowest peer and let a later policy surface a different error.
+      // Jira is advisory and must not delay the other providers.
+      const jiraRequestId = ++jiraStatusRequestIdRef.current
+      void jiraConnectionStatusProbe
+        .request(client)
+        .catch(() => null)
+        .then((reply) => {
+          if (!stale && jiraStatusRequestIdRef.current === jiraRequestId) {
+            setJiraConnection(readJiraConnectionProbeReply(reply))
+          }
+        })
+      // Keep raw Promise.all fail-fast behavior; an all-settled interpretation barrier would wait and could change error precedence.
       const [settingsResponse, uiReply, preflightReply, linearStatusReply] = await Promise.all([
         settingsRead.request(client),
         taskUiStateRead.request(client),
@@ -275,7 +253,7 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
       setRuntimeTaskSettings(settings)
       const uiRead = taskUiStateRead.interpret(uiReply)
       const uiState = uiRead.accepted
-        ? // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Preserve the established response shape at this boundary.
+        ? // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the schema checks the `{ ui }` container and leaves both members `unknown`, because each is forwarded whole and re-read field by field with its own defaults downstream.
           (uiRead.value as
             | {
                 taskResumeState?: TaskResumeState
@@ -289,15 +267,9 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
       setGithubProjectHiddenFieldIdsByView(resume.githubProjectHiddenFieldIdsByView ?? {})
 
       const preflightRead = taskPreflightRead.interpret(preflightReply)
-      const preflight = preflightRead.accepted
-        ? // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Preserve the established response shape at this boundary.
-          (preflightRead.value as { glab?: { installed?: boolean } })
-        : null
+      const preflight = preflightRead.accepted ? preflightRead.value : null
       const linearRead = taskLinearStatusRead.interpret(linearStatusReply)
-      const linearStatus = linearRead.accepted
-        ? // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Preserve the established response shape at this boundary.
-          (linearRead.value as LinearStatusResponse)
-        : null
+      const linearStatus = linearRead.accepted ? linearRead.value : null
       const preferredProviders = normalizeVisibleTaskProviders(settings.visibleTaskProviders)
       const linearIsConnected = linearStatus?.connected === true
       const availableProviders = filterAvailableTaskProviders(preferredProviders, {
@@ -315,43 +287,26 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
         setSelectedLinearTeamIds(new Set())
         setSelectedLinearWorkspaceId(null)
       }
-      const nextProvider =
-        requestedTaskSource && nextVisibleProviders.includes(requestedTaskSource)
-          ? requestedTaskSource
-          : resolveVisibleTaskProvider(
-              isTaskProvider(settings.defaultTaskSource) ? settings.defaultTaskSource : undefined,
-              nextVisibleProviders
-            )
-      const preset =
-        resume.githubItemsPreset === null
-          ? normalizeGitHubPreset(settings.defaultTaskViewPreset)
-          : normalizeGitHubPreset(resume.githubItemsPreset ?? settings.defaultTaskViewPreset)
-      const defaultPreset = normalizeGitHubPreset(settings.defaultTaskViewPreset)
-      const githubQuery =
-        resume.githubItemsPreset === null
-          ? (resume.githubItemsQuery ?? '')
-          : getTaskPresetQuery(preset)
-      const nextLinearFilter = normalizeLinearFilter(resume.linearPreset)
-      const nextLinearQuery = resume.linearQuery ?? ''
-      defaultRepoSelectionRef.current = settings.defaultRepoSelection ?? null
+      setSelectedRepoIds(new Set(settings.defaultRepoSelection ?? []))
       defaultLinearTeamSelectionRef.current = settings.defaultLinearTeamSelection ?? null
-      const nextQuery =
-        nextProvider === 'github' ? githubQuery : nextProvider === 'linear' ? nextLinearQuery : ''
-      const nextAppliedQuery =
-        nextProvider === 'github'
-          ? scopeGitHubTaskSearch(githubQuery, githubKindFromQuery(githubQuery, preset))
-          : nextQuery
+      const view = resolveHydratedTaskViewState({
+        settings,
+        resume,
+        requestedTaskSource,
+        visibleProviders: nextVisibleProviders
+      })
 
       setVisibleProviders(nextVisibleProviders)
-      setProvider(nextProvider)
+      setProvider(view.provider)
       setGithubMode(resume.githubMode === 'project' ? 'project' : 'items')
-      setDefaultGitHubPreset(defaultPreset)
-      setGithubPreset(preset)
-      setGithubKind(githubKindFromQuery(githubQuery, preset))
-      setLinearFilter(nextLinearFilter)
+      setDefaultGitHubPreset(view.defaultGithubPreset)
+      setGithubPreset(view.githubPreset)
+      setGithubKind(view.githubKind)
+      setLinearFilter(view.linearFilter)
+      setJiraFilter(view.jiraFilter)
       setGithubProjectSettings(settings.githubProjects ?? EMPTY_GITHUB_PROJECT_SETTINGS)
-      setQuery(nextQuery)
-      setAppliedQuery(nextAppliedQuery)
+      setQuery(view.query)
+      setAppliedQuery(view.appliedQuery)
       setTaskStateHydrated(true)
     }
 
@@ -359,14 +314,20 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
       if (stale) {
         return
       }
-      setError(err instanceof Error ? err.message : 'Failed to load Tasks settings')
+      setError(
+        err instanceof Error
+          ? err.message
+          : translate('tasks.runtimeHydration.loadFailed', 'Failed to load Tasks settings')
+      )
+      // Back to unknown so the error offers the hydration retry; loadTasks no-ops until hydrated.
+      setTasksSupportState({ kind: 'unknown', client })
       setTaskStateHydrated(false)
     })
 
     return () => {
       stale = true
     }
-  }, [client, connState, requestedTaskSource, resetWorkspaceCreateState])
+  }, [client, connState, hydrationAttempt, requestedTaskSource, resetWorkspaceCreateState])
 
   useEffect(() => {
     if (visibleProviders.includes(provider)) {
@@ -375,27 +336,9 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
     setProvider(resolveVisibleTaskProvider(provider, visibleProviders))
   }, [provider, visibleProviders])
 
-  // Selection follows the list rather than the fetch, so it reconciles the same
-  // way no matter which caller triggered the load.
-  useEffect(() => {
-    if (repoList.state.status !== 'loaded') {
-      return
-    }
-    if (!repoSelectionHydratedRef.current) {
-      repoSelectionHydratedRef.current = true
-      setSelectedRepoIds(reconcileRepoSelection(repos, defaultRepoSelectionRef.current))
-      return
-    }
-    setSelectedRepoIds((current) => {
-      if (current.size === 0) {
-        return current
-      }
-      const availableIds = new Set(repos.filter(isHostedTaskRepo).map((repo) => repo.id))
-      const next = new Set([...current].filter((id) => availableIds.has(id)))
-      return next.size === current.size ? current : next
-    })
-  }, [repoList.state.status, repos])
-  return model
+  return Object.assign(model, {
+    retryTasksHydration: () => setHydrationAttempt((attempt) => attempt + 1)
+  })
 }
 
 export type RuntimeHydrationModel = ReturnType<typeof useMobileTasksRuntimeHydration>

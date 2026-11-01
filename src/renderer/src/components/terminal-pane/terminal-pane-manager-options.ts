@@ -12,12 +12,11 @@ import {
   normalizeTerminalScrollSensitivity,
   resolveTerminalCursorInactiveStyle
 } from '@/lib/pane-manager/pane-terminal-options'
-import { buildFontFamily } from './layout-serialization'
+import { buildFontFamily } from '@/lib/monospace-font-family'
 import { buildWindowsPtyCompatibilityOptions } from '@/lib/pane-manager/windows-pty-compatibility'
 import { buildTerminalKeyboardProtocolOptions } from '@/lib/pane-manager/terminal-keyboard-protocol'
 import { resolvePaneKeyboardProtocolAgent } from './terminal-keyboard-protocol-pane-agent'
-import { getConnectionId } from '@/lib/connection-context'
-import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { UNRESOLVED_OWNER_HOST_ID } from '../../../../shared/execution-host'
 import { scheduleRuntimeGraphSync } from '@/runtime/sync-runtime-graph'
 import { acquireWebviewsDragPassthrough } from '../browser-pane/host-guest/webview-registry'
 import { handleTerminalWebLinkClick } from './terminal-web-link-click'
@@ -29,8 +28,10 @@ import {
 } from './terminal-pane-lifecycle-primitives'
 import { resolveTerminalLayoutActiveLeafId } from './terminal-layout-leaf-ids'
 import type { TerminalPaneManagerOptionsContext } from './terminal-pane-mount-context'
+import { resolveTerminalInlineImagesEnabled } from '../../../../shared/terminal-inline-images-settings'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
+import { layoutOwnerPaneGestures } from './terminal-pane-layout-owner-gestures'
 
-/** Builds the imperative PaneManager option bag from the mount context. */
 export function createTerminalPaneManagerOptions(
   context: TerminalPaneManagerOptionsContext
 ): PaneManagerOptions {
@@ -104,12 +105,22 @@ export function createTerminalPaneManagerOptions(
     },
     resolveExternalPaneDropTarget,
     onExternalPaneDrop,
+    ...(ORCA_LAYOUT_OWNER_IS_MAIN
+      ? layoutOwnerPaneGestures({
+          worktreeId,
+          tabId,
+          managerRef,
+          shouldPersistLayout: context.shouldPersistLayout
+        })
+      : {}),
     terminalLigaturesEnabled: () =>
       resolveTerminalLigaturesEnabled(
         settingsRef.current?.terminalLigatures,
         settingsRef.current?.terminalFontFamily
       ),
-    terminalOptions: () => {
+    terminalInlineImagesEnabled: () =>
+      resolveTerminalInlineImagesEnabled(settingsRef.current?.terminalInlineImages),
+    terminalOptions: (paneId) => {
       const currentSettings = settingsRef.current
       const terminalFontWeights = resolveTerminalFontWeights(
         currentSettings?.terminalFontWeight,
@@ -125,13 +136,14 @@ export function createTerminalPaneManagerOptions(
         ptyDeps.startup,
         currentTab?.launchAgent
       )
+      const owner = panePtyBindingsRef.current.get(paneId)?.getOwnerContext?.()
       const ptyBackendContext = {
         userAgent: navigator.userAgent,
         osRelease: platformInfo?.osRelease,
-        connectionId: getConnectionId(worktreeId),
+        connectionId: owner?.connectionId,
         cwd: context.startupCwd,
         shellOverride: currentTab?.shellOverride,
-        executionHostId: getExecutionHostIdForWorktree(storeState, worktreeId),
+        executionHostId: owner?.executionHostId ?? UNRESOLVED_OWNER_HOST_ID,
         tuiAgent: knownTuiAgent
       }
       return {

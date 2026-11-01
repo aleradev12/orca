@@ -33,56 +33,17 @@ function session(tabs: Tab[], activeTabId: string | null): WorkspaceSessionState
 }
 
 describe('saved structured session restoration targets', () => {
-  it('prioritizes the visible chat and excludes closed history', () => {
+  it('keeps restoration on the local execution host and deduplicates repeated sessions', () => {
     const saved = session(
       [
-        tab({ id: 'tab-background', structuredSessionId: 'session-background' }),
-        tab({ id: 'tab-visible', structuredSessionId: 'session-visible' })
-      ],
-      'tab-visible'
-    )
-
-    expect(collectSavedStructuredAgentSessionIds(saved)).toEqual([
-      'session-visible',
-      'session-background'
-    ])
-    expect(collectSavedStructuredAgentSessionIds(session([], null))).toEqual([])
-  })
-
-  it('keeps restoration on the local execution host and deduplicates adopted tabs', () => {
-    const saved = session(
-      [
-        tab({ id: 'remote', executionHostId: 'ssh:build', structuredSessionId: 'session-remote' }),
-        tab({ id: 'local-a', structuredSessionId: 'session-local' }),
-        tab({
-          id: 'local-b',
-          contentType: 'terminal',
-          structuredSessionId: 'session-local'
-        })
+        tab({ id: 'remote', executionHostId: 'ssh:build', entityId: 'session-remote' }),
+        tab({ id: 'local-a', entityId: 'session-local' }),
+        tab({ id: 'local-b', entityId: 'session-local' }),
+        tab({ id: 'terminal', contentType: 'terminal', entityId: 'pty-tab-1' })
       ],
       'remote'
     )
 
     expect(collectSavedStructuredAgentSessionIds(saved)).toEqual(['session-local'])
-  })
-
-  it('skips explicitly Claude-owned structured tabs', () => {
-    const saved = session(
-      [
-        tab({
-          id: 'claude-tab',
-          agentSessionAgent: 'claude',
-          structuredSessionId: 'session-claude'
-        }),
-        tab({
-          id: 'codex-tab',
-          agentSessionAgent: 'codex',
-          structuredSessionId: 'session-codex'
-        })
-      ],
-      'claude-tab'
-    )
-
-    expect(collectSavedStructuredAgentSessionIds(saved)).toEqual(['session-codex'])
   })
 })

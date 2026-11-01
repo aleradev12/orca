@@ -1,5 +1,6 @@
+import { AGENT_JOURNAL_THREAD_SCOPE } from '../../shared/agent-session/journal/agent-session-journal-types'
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentJournalItemBody } from '../../shared/agent-session-journal-types'
+import type { AgentJournalItemBody } from '../../shared/agent-session/journal/agent-session-journal-types'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
 import { CodexJournalGenericFrames } from './codex-structured-journal-generic-frames'
 import { CodexJournalGoals } from './codex-structured-journal-goals'
@@ -35,8 +36,11 @@ function frames(): {
     },
     publish: vi.fn()
   } as unknown as StructuredAgentSessionEventSink
-  const goals = new CodexJournalGoals(sink)
-  const generic = new CodexJournalGenericFrames({ sink }, () => null)
+  const goals = new CodexJournalGoals(sink, () => ({ turnScope: AGENT_JOURNAL_THREAD_SCOPE }))
+  const generic = new CodexJournalGenericFrames(
+    { sink, attributionFor: () => ({ turnScope: AGENT_JOURNAL_THREAD_SCOPE }) },
+    () => null
+  )
   return {
     rows,
     frames: {
@@ -56,19 +60,38 @@ function texts(rows: AgentJournalItemBody[]): string[] {
 }
 
 describe('codex goal frames as journal rows', () => {
-  it('writes one row when the goal appears', () => {
+  it('records the goal in typed form so readers never parse the frame head', () => {
     const { rows, frames: generic } = frames()
 
-    generic.appendUnhandled('notification:thread/goal/updated', goalFrame({}), THREAD)
+    generic.appendUnhandled(
+      'notification:thread/goal/updated',
+      goalFrame({ tokenBudget: 50_000, tokensUsed: 12, timeUsedSeconds: 9 }),
+      THREAD
+    )
+    generic.appendUnhandled('notification:thread/goal/cleared', { threadId: THREAD }, THREAD)
 
-    expect(texts(rows)).toEqual(['Goal set: Keep the current scratch directory tidy.'])
+    expect(rows.map((row) => (row.kind === 'status' ? row.threadGoal : undefined))).toEqual([
+      {
+        state: 'set',
+        goal: {
+          objective: 'Keep the current scratch directory tidy.',
+          status: 'active',
+          tokenBudget: 50_000,
+          tokensUsed: 12,
+          timeUsedSeconds: 9,
+          // Codex reports epoch seconds; the journal keeps epoch ms.
+          createdAt: 1789067988_000,
+          updatedAt: 1789067988_000
+        }
+      },
+      { state: 'cleared' }
+    ])
   })
 
   it('does not repeat the row while only the counters climb', () => {
     const { rows, frames: generic } = frames()
 
-    // Codex re-sends the goal through the turn as accounting ticks; a live session
-    // emitted these two seconds apart with nothing else changed.
+    // Captured live accounting ticks, two seconds apart.
     generic.appendUnhandled('notification:thread/goal/updated', goalFrame({}), THREAD)
     generic.appendUnhandled(
       'notification:thread/goal/updated',
@@ -82,38 +105,6 @@ describe('codex goal frames as journal rows', () => {
     )
 
     expect(rows).toHaveLength(1)
-  })
-
-  it('writes a second row when the status changes', () => {
-    const { rows, frames: generic } = frames()
-
-    generic.appendUnhandled('notification:thread/goal/updated', goalFrame({}), THREAD)
-    generic.appendUnhandled(
-      'notification:thread/goal/updated',
-      goalFrame({ status: 'complete', tokensUsed: 31_000 }),
-      THREAD
-    )
-
-    expect(texts(rows)).toEqual([
-      'Goal set: Keep the current scratch directory tidy.',
-      'Goal complete: Keep the current scratch directory tidy.'
-    ])
-  })
-
-  it('writes a row when the objective is replaced', () => {
-    const { rows, frames: generic } = frames()
-
-    generic.appendUnhandled('notification:thread/goal/updated', goalFrame({}), THREAD)
-    generic.appendUnhandled(
-      'notification:thread/goal/updated',
-      goalFrame({ objective: 'Ship the parser.' }),
-      THREAD
-    )
-
-    expect(texts(rows)).toEqual([
-      'Goal set: Keep the current scratch directory tidy.',
-      'Goal set: Ship the parser.'
-    ])
   })
 
   it('writes a row when the goal is cleared, and again if a new goal follows', () => {
@@ -141,16 +132,6 @@ describe('codex goal frames as journal rows', () => {
     generic.appendUnhandled('notification:thread/goal/updated', goalFrame({}), THREAD)
     generic.appendUnhandled('notification:thread/goal/updated', goalFrame({}), other)
 
-    expect(rows).toHaveLength(2)
-  })
-
-  it('leaves non-goal frames to the existing path', () => {
-    const { rows, frames: generic } = frames()
-
-    generic.appendUnhandled('notification:warning', { message: 'disk almost full' }, THREAD)
-    generic.appendUnhandled('notification:warning', { message: 'disk almost full' }, THREAD)
-
-    // No goal dedupe applies, so both warnings still land.
     expect(rows).toHaveLength(2)
   })
 })

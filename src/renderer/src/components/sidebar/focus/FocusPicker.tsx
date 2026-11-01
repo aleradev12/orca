@@ -6,7 +6,7 @@ import { useFocusStore } from './use-focus-store'
 import type { FocusPin } from './focus-state'
 
 const FullEmojiPicker = lazy(() =>
-  import('../../settings/RepositoryIconEmojiPicker').then((module) => ({
+  import('../../settings/repository/identity/RepositoryIconEmojiPicker').then((module) => ({
     default: module.RepositoryIconEmojiPicker
   }))
 )

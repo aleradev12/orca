@@ -113,7 +113,51 @@ These are actual Electron screenshots of disposable synthetic repositories under
 | Before: ![Previous Focus](../assets/focus-fork/before-focus.png)                  | Before: ![Previous search result](../assets/focus-fork/before-search.png) |
 | After: ![Focus context and one view switch](../assets/focus-fork/after-focus.png) | After: ![Two-line search context](../assets/focus-fork/after-search.png)  |
 
-## Development and validation
+## Source-built macOS dev preview (upstream 1.4.214)
+
+Issue [#38](https://github.com/aleradev12/orca/issues/38) adapts Focus to upstream
+`2666bbddbe43298cc9597ca6469884ba9acbc3de`. Search now ranks the expanded rows
+from upstream's shared sidebar model; clearing the query restores saved grouping.
+The upstream host/visibility policy and the separate unread/agent/port signals remain.
+
+Build a separate **Orca Focus Dev.app** on Apple Silicon, without copying any
+installed Orca runtime (run from the source checkout):
+
+```sh
+pnpm install --frozen-lockfile
+pnpm -C mobile install --frozen-lockfile
+pnpm tc
+ORCA_COMPUTER_MACOS_SIGN_IDENTITY=- pnpm build:native
+pnpm build:wsl-guest
+# Keep this order: electron-vite bundles Node entries emitted by build-cli.
+node config/scripts/build-cli.mjs
+node config/scripts/verify-cli-bin.mjs --fix-executable --fix-package-json
+pnpm build:electron-vite
+pnpm build:web-from-renderer
+pnpm build:mobile-web
+pnpm ensure:electron-runtime
+CSC_IDENTITY_AUTO_DISCOVERY=false pnpm exec electron-builder \
+  --config config/electron-builder.focus-dev.cjs --dir --mac --arm64 --publish never
+```
+
+Output: `dist/focus-dev/mac-arm64/Orca Focus Dev.app`. The bundle identity is
+`local.orca.focus.dev`, with independent userData `orca-focus-dev`; do not rename
+the bundle. It does not register URL/document handlers, install the global CLI or
+use production auto-updates. No profiles, credentials or sessions are copied.
+It still edits real project folders when you add them, so use disposable projects
+for destructive checks. This local preview is ad-hoc signed, not notarized; remote
+server templates and a multi-platform release pipeline remain outside this build.
+
+Validation for this sync: full node/CLI/web typecheck, **80 focused tests**,
+changed Focus-source lint/format checks, deep/strict bundle signature verification,
+and hidden packaged Electron IPC/UI smoke passed. The smoke covers expanded and
+ranked search, clearing/collapse, emoji editing, grid/list, pointer/keyboard drag,
+unread, actual native listener attribution, synthetic agent signals, themed hints,
+restart persistence and the renamed bundled CLI. The new terminal host served a
+real PTY during packaging. Real-provider cold resume, visible browser-focus behavior,
+Windows/Linux and remote deployment were not tested; no primary app was replaced.
+
+## Development and validation (previous 1.4.205 delivery)
 
 The fork preserves upstream's source tooling. Use Node/pnpm versions specified by
 `package.json` and the upstream install policy. `pnpm dev` uses an independent
@@ -161,7 +205,7 @@ native runtime/dependencies, open a PR into `focus/main`, and merge it. Do not
 force-push or rebase the published integration branch. The separate `main` mirror
 can be advanced with a fast-forward-only merge from `upstream/main`.
 
-**Packaging is not yet ready for arbitrary new upstream versions.** The existing
+**Use the independent dev build above for this upstream update.** The legacy
 local sidecar assembler uses the exact installed 1.4.205 native runtime and rejects
 unrelated runtime/dependency changes. It is local delivery tooling, not the
 standalone source release workflow. Native independent packaging and fork CI are
