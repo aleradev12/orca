@@ -4,8 +4,6 @@ public enum TrustedOrcaApplication {
         // Why: `pnpm dev` launches as `com.stablyai.orca.dev` and per-worktree wrapper apps use
         // `com.stablyai.orca.dev.<name>`; the sidecar peer check must authorize both (#26498).
         bundleId == "local.orca.focus" ||
-            bundleId == "local.orca.focus.dev" ||
-            bundleId == "local.orca.focus.test" ||
             bundleId == "com.stablyai.orca" ||
             bundleId == "com.stablyai.orca.dev" ||
             bundleId.hasPrefix("com.stablyai.orca.dev.") ||

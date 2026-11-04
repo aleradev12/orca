@@ -6,8 +6,6 @@ struct TrustedOrcaApplicationTests {
     @Test("trusts the packaged app, every dev build and stock Electron")
     func trusted() {
         #expect(TrustedOrcaApplication.isTrusted(bundleId: "local.orca.focus"))
-        #expect(TrustedOrcaApplication.isTrusted(bundleId: "local.orca.focus.dev"))
-        #expect(TrustedOrcaApplication.isTrusted(bundleId: "local.orca.focus.test"))
         #expect(TrustedOrcaApplication.isTrusted(bundleId: "com.stablyai.orca"))
         // What `pnpm dev` launches as: DEV_BUNDLE_ID in dev-electron-bundle-identity.mjs (#26498).
         #expect(TrustedOrcaApplication.isTrusted(bundleId: "com.stablyai.orca.dev"))
@@ -19,6 +17,8 @@ struct TrustedOrcaApplicationTests {
     func untrusted() {
         #expect(!TrustedOrcaApplication.isTrusted(bundleId: "com.stablyai.orca.devtools"))
         #expect(!TrustedOrcaApplication.isTrusted(bundleId: "com.stablyai.orcax"))
+        #expect(!TrustedOrcaApplication.isTrusted(bundleId: "local.orca.focus.dev"))
+        #expect(!TrustedOrcaApplication.isTrusted(bundleId: "local.orca.focus.test"))
         #expect(!TrustedOrcaApplication.isTrusted(bundleId: "local.orca.focus.evil"))
         #expect(!TrustedOrcaApplication.isTrusted(bundleId: "local.orca.focusdev"))
         #expect(!TrustedOrcaApplication.isTrusted(bundleId: "com.example.orca"))
